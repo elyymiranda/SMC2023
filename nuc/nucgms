@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# This script create all the structure for the SMC scattering calculations.
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 15/09/2021
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+### Input important informations
+
+if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
+    echo "No input provided"
+    exit 1
+fi
+	
+PATH_TO_SMC="$SMC/nuc/NucAtracPP.x"
+FOLDER=$(dirname $1)
+
+MOLECULE=$(grep -n "MNAME  =" $1 | cut -c13-)
+GROUP=$(grep -n "GROUP  =" $1 | cut -c13-)
+MV0=$(grep -n "MVO    =" $1 | cut -c13-)
+EXTRAC=$(grep -n "EXTRAC =" $1 | cut -c13-)
+RPPLANE=$(grep -n "RPLANE =" $1 | cut -c13-)
+
+GMODE=$(grep -n "GMODE  =" $1 | cut -c13-)
+ILINE=$(grep -n " BEGIN_GEO" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n " END_GEO" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$((${ILINE}+1)),$((${FLINE}-1)) p" $1 > $FOLDER/geo  # Save the states info
+if [[ $GMODE == 'ANGS' ]]; then
+	perl -pe 's/\b(\d+\.)?\d+\b/$&*1.8897259886/ge' $FOLDER/geo | sed 's/[^0-9 -.]*//g' > $FOLDER/tmp 
+       	mv $FOLDER/tmp $FOLDER/geo
+fi
+
+ILINE=$(grep -n " BEGIN_BASIS" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n " END_BASIS" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$((${ILINE}+1)),$((${FLINE}-1)) p" $1 > $FOLDER/basis  # Save the states info
+
+NATOMS=$(wc -l $FOLDER/basis | awk '{print $1}') # Find the last line of the states info
+
+
+### Infbasic-nucgms input construction and running
+
+echo "#!/bin/csh
+
+set execNG = $SMC/nuc/montarnucgms-alt5.x
+
+\$execNG <<fim
+
+NATOMS = $NATOMS
+EXTRAC = $EXTRAC
+GROUP  = $GROUP
+RPLANE = $RPPLANE
+GMSINP = gmssmc.inp
+GMSOUT =
+GMSDAT =
+NUCINP = nuc.inp
+MNAME  = $MOLECULE" > $FOLDER/infbasic-nucgms
+
+cat $FOLDER/basis >> $FOLDER/infbasic-nucgms
+echo '#EQUILIBRIUM GEOMETRY (BOHR) OF THE ATOMS LISTED ABOVE' >> $FOLDER/infbasic-nucgms
+cat $FOLDER/geo >> $FOLDER/infbasic-nucgms
+echo 'fim' >> $FOLDER/infbasic-nucgms
+
+### Nuc and gmssmc.inp inputs construct and running
+
