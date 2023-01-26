@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# This script create all the structure for the SMC scattering calculations.
+# This script create all the structure for the GAMES-SMC calculations.
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 15/09/2021
+# Last update: 23/01/2023
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 ### Input important informations
@@ -12,22 +12,23 @@ if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
     exit 1
 fi
 	
-PATH_TO_SMC="$SMC/nuc/NucAtracPP.x"
-FOLDER=$(dirname $1)
+PATH_TO_SMC="$SMC/nuc/NucAtracPP.x"  # Track NucAtracPP in SMC folder
+FOLDER=$(readlink -f $1)  # Track the job folder
+cp $SMC/nuc/PPandBASIS.txt $FOLDER
 
-MOLECULE=$(grep -n "MNAME  =" $1 | cut -c13-)
-GROUP=$(grep -n "GROUP  =" $1 | cut -c13-)
-MV0=$(grep -n "MVO    =" $1 | cut -c13-)
-EXTRAC=$(grep -n "EXTRAC =" $1 | cut -c13-)
-RPPLANE=$(grep -n "RPLANE =" $1 | cut -c13-)
+MOLECULE=$(grep -n "MNAME  =" $1 | cut -c13-)  # Find molecule name in input
+GROUP=$(grep -n "GROUP  =" $1 | cut -c13-)  # Find molecule point group symmetry in input
+MVO=$(grep -n "MVO    =" $1 | cut -c13-)  # Find molecule required MV0'S (could be more than just one) in input
+EXTRAC=$(grep -n "EXTRAC =" $1 | cut -c13-)  # Find any required extra center in input
+RPPLANE=$(grep -n "RPLANE =" $1 | cut -c13-)  # Find molecule symmetry plane in input
 
-GMODE=$(grep -n "GMODE  =" $1 | cut -c13-)
+GMODE=$(grep -n "GMODE  =" $1 | cut -c13-)  # Geometry in angstron or bohr
 ILINE=$(grep -n " BEGIN_GEO" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
 FLINE=$(grep -n " END_GEO" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
 sed -n "$((${ILINE}+1)),$((${FLINE}-1)) p" $1 > $FOLDER/geo  # Save the states info
-if [[ $GMODE == 'ANGS' ]]; then
-	perl -pe 's/\b(\d+\.)?\d+\b/$&*1.8897259886/ge' $FOLDER/geo | sed 's/[^0-9 -.]*//g' > $FOLDER/tmp 
-       	mv $FOLDER/tmp $FOLDER/geo
+if [[ $GMODE == 'ANGS' ]]; then  # If the geometry is given is angstron, we should change it for bohr
+	perl -pe 's/\b(\d+\.)?\d+\b/$&*1.8897259886/ge' $FOLDER/geo | sed 's/[^0-9 -.]*//g' > $FOLDER/tmp  # Multiply the angs for 1.8897259886
+       	mv $FOLDER/tmp $FOLDER/geo  # Save it as the new geo
 fi
 
 ILINE=$(grep -n " BEGIN_BASIS" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
@@ -37,18 +38,18 @@ sed -n "$((${ILINE}+1)),$((${FLINE}-1)) p" $1 > $FOLDER/basis  # Save the states
 NATOMS=$(wc -l $FOLDER/basis | awk '{print $1}') # Find the last line of the states info
 
 
-### Infbasic-nucgms input construction and running
+### infbasic-nucgms input construction
 
 echo "#!/bin/csh
 
-set execNG = $SMC/nuc/montarnucgms-alt5.x
+set execNG = '$SMC/nuc/montarnucgms-alt5.x'
 
 \$execNG <<fim
-
 NATOMS = $NATOMS
 EXTRAC = $EXTRAC
 GROUP  = $GROUP
 RPLANE = $RPPLANE
+MVO    = 
 GMSINP = gmssmc.inp
 GMSOUT =
 GMSDAT =
@@ -60,5 +61,40 @@ echo '#EQUILIBRIUM GEOMETRY (BOHR) OF THE ATOMS LISTED ABOVE' >> $FOLDER/infbasi
 cat $FOLDER/geo >> $FOLDER/infbasic-nucgms
 echo 'fim' >> $FOLDER/infbasic-nucgms
 
-### Nuc and gmssmc.inp inputs construct and running
 
+### infbasic-nucgms input running
+
+echo 'Staring to generate nucgms inputs'
+chmod +x $FOLDER/infbasic-nucgms
+$FOLDER/infbasic-nucgms
+echo 'End of this process'
+
+
+### Nuc and gmssmc.inp inputs running
+
+LINE=$(grep -n "DO NOT FORGET" $FOLDER/gmssmc.inp | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the line of occurance of this word
+sed -i "${LINE}d" $FOLDER/gmssmc.inp  # Exclude the line
+chmod +x $FOLDER/nuc.inp  # Make it executable
+sed -i '2d' $FOLDER/nuc.inp  # Exclude the second line
+sed -i "2i set RODA = ${PATH_TO_SMC}" $FOLDER/nuc.inp  # Write it in second line (find the NucAtrac)
+
+echo "Running nuc.inp"
+$FOLDER/nuc.inp
+echo 'End of this process'
+
+for i in $MVO; do
+        echo "Running nucgms for MOV=$i"
+        sed -i '3d' $FOLDER/gmssmc.inp
+        sed -i "3 i \ \$SCF DIRSCF=.TRUE. MVOQ=$i \$END" $FOLDER/gmssmc.inp
+        cp $FOLDER/gmssmc.inp $FOLDER/res-bhs${i}.inp
+        cp $FOLDER/VNUC.FILE /tmp/res-bhs${i}.F77
+        $SMC/nuc/rungms $FOLDER/res-bhs${i}.inp 00 1>& $FOLDER/res-bhs${i}.log
+        mv /tmp/res-bhs${i}.dat $FOLDER/res-bhs${i}.dat
+        mv /tmp/res-bhs${i}.OCK $FOLDER/FOCK.FILE
+        mv /tmp/res-bhs* $FOLDER/  2>/dev/null
+        echo 'End of this process'
+done
+
+rm $FOLDER/*.F77 $FOLDER/*.F05 $FOLDER/infbasic-nucgms $FOLDER/nuc.inp $FOLDER/geo $FOLDER/PPandBASIS.txt $FOLDER/gmssmc.inp 2>/dev/null
+
+echo "All nucgms process are completed!"

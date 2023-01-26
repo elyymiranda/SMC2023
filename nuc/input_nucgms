@@ -13,20 +13,22 @@
 # Avaliable Groups: Cnv 2{RPLANE=XZ}, Dnh 2{RPLANE=XZ}
 # Avaliable Groups: C1 {RPLANE=NO}
 
+# DO NOT LEAVE ANY FREE SPACE AFTER THE ARGUMENT. REMEMBER TO LEAVE THE SPACES BETWEEN =
+
 # If necessary, enter the number of extra centers.
-EXTRAC = 0				
+EXTRAC = 0
 
 # Symmetry group of the molecule
-GROUP  = C1	
+GROUP  = C1
 
 # Reflection plane of the symmetry group
-RPLANE = NO		
+RPLANE = NO
 
 # Modified Virtual Orbitals (all you wanted to use)
-MVO    = 2 4 6			
+MVO    = 2 4 6
 
 # Molecule's name
-MNAME  = NDP			 
+MNAME  = NDP
 
 # Geometry numbers type: Angstrom (ANGS) or Bohr (BOHR)
 GMODE  = ANGS
