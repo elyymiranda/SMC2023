@@ -296,11 +296,11 @@ elif [ $GROUP == C2v ]; then
 	echo "2" >> $FOLDER/simetria.inp
 
 	l3=$(grep -n "ORBITAL SYMMETRIES" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
-    l4=$(grep -n "SYMMETRY BLOCKS" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
-    sed -n "$((${l3}+2)), $((${l4}-3)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp2
+        l4=$(grep -n "SYMMETRY BLOCKS" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        sed -n "$((${l3}+2)), $((${l4}-3)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp2
 
-    LINE=$(grep -n "$NUMBER_OF_ORBITALS" $FOLDER/tmp2 | cut -d: -f1)
-    ARRAY=()
+        LINE=$(grep -n "$NUMBER_OF_ORBITALS" $FOLDER/tmp2 | cut -d: -f1)
+        ARRAY=()
 
         for column in $(seq 1 15); do
                 VALUE=$(awk -v line="$LINE" -v col="$column" 'NR == line { print $col }' < $FOLDER/tmp2)
@@ -552,7 +552,7 @@ else
 
         for sym in ${SYM[@]}; do
 
-	        cp $FOLDER/{$VNUC,$FOCK} $FOLDER/$CSF/$sym/
+	        cp $FOLDER/{$VNUC,$FOCK,eigenvec-sim} $FOLDER/$CSF/$sym/
 
 	        if [ $APPROX == SEP ]; then
 		        LINE1=$(grep -n "MOB-SCI" $FOLDER/$CSF/$sym/simetria.lis | sed 's/[^0-9.]*//g')
@@ -623,4 +623,19 @@ final" >> $FOLDER/$CSF/$sym/${sym}-a
 
 fi
 
+
+### Clear some files and save the simmetry group and name of the molecule in eigenvec-sim for parteB
+
 rm $FOLDER/*tmp* $FOLDER/*eigenvalues $FOLDER/simetria.inp $FOLDER/$CSF/*tmp* $FOLDER/$CSF/$NUC 2>/dev/null
+
+if [ ! -e $FOLDER/eigenvec-sim ]; then
+
+  echo "$MOLECULE" > $FOLDER/eigenvec-sim
+  echo "$GROUP" >> $FOLDER/eigenvec-sim
+
+else
+
+sed -i "1 i $GROUP" $FOLDER/eigenvec-sim 
+sed -i "1 i $MOLECULE" $FOLDER/eigenvec-sim 
+
+fi

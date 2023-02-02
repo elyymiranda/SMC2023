@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# This is the input for off of SMCPP (parteB).
+
+# DO NOT LEAVE ANY FREE SPACE AFTER THE ARGUMENT. REMEMBER TO LEAVE THE SPACES BETWEEN
+
+# Path to parteB
+PATH_TO_B="$SMC/b2018/teste/1/b2018.x"
+
+# CSF's construction type
+CSF    = SE
+
+## Control block
+%INI_CONTROL_BLOCK
+NDEBUG = 0
+RUNTYP = 3DK
+KEYDEN = NONE
+WRTOFF = NDND
+INVERT = SVD_KMT
+SVDMAX = 3
+SVDDEL = SEL
+SVDPTS = 4
+1 1 1 
+0 1 1 
+0 0 1 
+0 0 0
+IN_MEM = DEN
+NOENER = $#ener
+ENERGY = 
+$ener
+%END_CONTROL_BLOCK
+
+## Quadrature for intergration
+
+# Initial and final points of calculation (NEVER START WITH 0.0)
+INT_POINT = 0.01  
+END_POINT = 10.51
+STEP = 0.05
+
+# Spec. of the quadrature
+%INI_QUADTRE_BLOCK
+QUADT = GAUSS
+NOTHT = 14
+NOPHI = 14
+QUADK = LEGEN
+KRAD1 = 32
+KRAD2 = 32
+XKMAX = 1.6  
+%END_QUADTRE_BLOCK

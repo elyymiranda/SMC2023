@@ -1,0 +1,139 @@
+#!/bin/bash
+
+# This script create all the structure for the SMC scattering calculations (parte B).
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 30/01/2023
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+
+### Input important informations
+
+if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
+    echo "No input provided"
+    exit 1
+fi
+
+FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
+MOLECULE=$(sed -n '1p' eigenvec-sim)  # Find molecule name in input
+GROUP=$(sed -n '2p' eigenvec-sim)   # Find the Symmetry group of the molecule
+CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')
+EIGENVEC='eigenvec-sim'
+
+NKPTS_OFF_FROM=$(grep "^END_POINT" $1 | cut -d "=" -f 2)
+NKPTS_OFF_TO=$(grep "^INT_POINT" $1 | cut -d "=" -f 2)
+
+PATH_TO_B="$SMC/b2018/teste/1/b2018.x"
+
+
+### Folder creation 
+
+if [ $GROUP == Cs ]; then
+        SYM=()
+        SYM+=(ap)
+        SYM+=(app)
+
+        for sym in ${SYM[@]}; do
+                mkdir -p $DIRETORY/$CSF/$sym
+        done
+
+elif [ $GROUP == C2v ]; then
+        SYM=()
+        SYM+=(a1)
+        SYM+=(b1)
+        SYM+=(b2)
+        SYM+=(a2)
+        echo "This $GROUP is not in this script".
+
+        for sym in $(${SYM}[@]); do
+                mkdir -p $DIRETORY/$CSF/$sym
+        done
+
+elif [ $GROUP == C1 ]; then
+        mkdir -p $FOLDER/$CSF/
+
+else
+        echo "This $GROUP is not in this script".
+        break
+fi
+
+
+### NKPS points array
+
+ARRAY_OFF_POINTS=()
+ARRAY_OFF_POINTS+=(${NKPTS_OFF_FROM})
+ARRAY_OFF_POINTS+=(${NKPTS_OFF_TO})
+
+
+### Creating the input
+
+echo "#!/bin/csh
+
+set EXECB = $PATH_TO_B
+
+\$EXECB << fim > off.lis
+" > "$FOLDER/$CSF/off"
+
+ILINE=$(grep -n "INI_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n "END_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$ILINE,$FLINE p" $1 >> "$FOLDER/$CSF/off"  # Save the states info
+
+echo '
+
+%INI_SYMETRY_BLOCK' >> "$FOLDER/$CSF/off"
+
+
+if [ $GROUP == Cs ]; then
+
+        echo 'SYMOP = Z' >> "$FOLDER/$CSF/off"
+
+        l1=$(grep -n "ORBITAL SYMMETRIES" $FOLDER/$EIGENVEC | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        l2=$(grep -n "SYMMETRY BLOCKS" $FOLDER/$EIGENVEC | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        sed -n "$((${l1}+2)), $((${l2}-3)) p" $FOLDER/$EIGENVEC > $FOLDER/$CSF/tmp
+        cat $FOLDER/$CSF/tmp >> "$FOLDER/$CSF/off"
+
+elif [ $GROUP == C2v ]; then
+
+        echo "This $GROUP is not in this script".
+
+elif [ $GROUP == C1 ]; then
+
+        echo 'SYMOP = NO' >> "$FOLDER/$CSF/off"
+
+else
+        echo "This $GROUP is not in this script".
+
+fi
+
+
+echo '%END_SYMETRY_BLOCK
+
+' >> "$FOLDER/$CSF/off"
+
+NKPTS=$(($NKPTS_OFF_FROM - $NKPTS_OFF_TO + 1))
+
+ILINE=$(grep -n "INI_QUADTRE_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n "END_QUADTRE_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$ILINE,$(($FLINE-1)) p" $1 >> "$FOLDER/$CSF/off"  # Save the states info
+echo "NKPTS = $NKPTS" >> "$FOLDER/$CSF/off"
+
+for j in $(seq $NKPTS_OFF_TO $NKPTS_OFF_FROM); do
+        if [ $j -le 9 ]; then
+                echo "0$j" >> "$FOLDER/$CSF/off"
+        else
+                echo "$j" >> "$FOLDER/$CSF/off"
+        fi
+done
+
+echo '%END_QUADTRE_BLOCK
+fim' >> "$FOLDER/$CSF/off"
+
+if [ $GROUP != "C1" ]; then
+
+        for sym in ${SYM[@]}; do
+
+                cp "$FOLDER/$CSF/off" $FOLDER/$CSF/${sym}
+                rm $FOLDER/$CSF/onk
+
+        done
+
+fi

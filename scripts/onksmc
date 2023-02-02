@@ -1,0 +1,183 @@
+#!/bin/bash
+
+# This script create all the structure for the SMC scattering calculations (parte B).
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 31/01/2023
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+
+### Input important informations
+
+if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
+    echo "No input provided"
+    exit 1
+fi
+
+FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
+MOLECULE=$(sed -n '1p' eigenvec-sim)  # Find molecule name in input
+GROUP=$(sed -n '2p' eigenvec-sim)   # Find the Symmetry group of the molecule
+CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')
+EIGENVEC='eigenvec-sim'
+
+INT_ONK=$(grep "^INT_POINT" $1 | cut -d "=" -f 2 | sed 's/ //g')                                      
+END_ONK=$(grep "^END_POINT" $1 | cut -d "=" -f 2 | sed 's/ //g')
+STEP=$(grep "^STEP" $1 | cut -d "=" -f 2 | sed 's/ //g')
+
+PATH_TO_B="$SMC/b2018/teste/1/b2018.x"
+
+
+### Folder creation 
+
+if [ $GROUP == Cs ]; then
+        SYM=()
+        SYM+=(ap)
+        SYM+=(app)
+
+        for sym in ${SYM[@]}; do
+                mkdir -p $DIRETORY/$CSF/$sym
+        done
+
+elif [ $GROUP == C2v ]; then
+        SYM=()
+        SYM+=(a1)
+        SYM+=(b1)
+        SYM+=(b2)
+        SYM+=(a2)
+        echo "This $GROUP is not in this script".
+
+        for sym in $(${SYM}[@]); do
+                mkdir -p $DIRETORY/$CSF/$sym
+        done
+
+elif [ $GROUP == C1 ]; then
+        mkdir -p $FOLDER/$CSF/
+
+else
+        echo "This $GROUP is not in this script".
+        break
+fi
+
+
+# Input production
+
+echo "#!/bin/csh
+
+set EXECB = $PATH_TO_B
+" > $FOLDER/$CSF/onk
+
+ARRAY_ONK=()
+POINTS=$(echo "($END_ONK-$INT_ONK)/$STEP" | bc -l)
+POINTS_ONK=$(echo $POINTS | awk '{printf("%.0f\n", $0)}')
+THRESHOLD=0.000000000000001
+
+if [ $POINTS_ONK -lt 15 ]; then
+
+        for i in $(seq 0 $POINTS_ONK); do
+
+                VALUE=$(awk -v x=$i.2g -v y=$STEP -v z=$INT_ONK 'BEGIN{value=(x*y+z-0.01); print value;}')
+
+                if awk -v val="$VALUE" -v thres="$THRESHOLD" 'BEGIN { if (val < thres) exit 0; else exit 1}' ; then
+                        VALUE=0.01
+                        echo "
+                        The initial value of the calculation is 0, so it was changed to 0.01.
+                        "
+                fi 
+
+                ARRAY_ONK+=($VALUE)
+        done
+
+        if [ $VALUE == $END_ONK ]; then
+                echo "foreach ener(${ARRAY_ONK[@]})" >> $FOLDER/$CSF/onk
+        else    
+                echo "foreach ener(${ARRAY_ONK[@]} $END_ONK)" >> $FOLDER/$CSF/onk
+        fi
+
+else
+
+        for i in $(seq 0 $POINTS_ONK); do
+                VALUE=$(awk -v x=$i.2g -v y=$STEP -v z=$INT_ONK 'BEGIN{value=(x*y+z-0.01); print value;}')
+        
+                if awk -v val="$VALUE" -v thres="$THRESHOLD" 'BEGIN { if (val < thres) exit 0; else exit 1}' ; then
+                        VALUE=0.01
+                        echo "
+                        The initial value of the calculation is 0, so it was changed to 0.01.
+                        "
+                fi 
+
+                ARRAY_ONK+=($VALUE)
+
+                if (( $i == 15 )); then
+                        echo 'foreach ener('"${ARRAY_ONK[@]}"' \' >> $FOLDER/$CSF/onk
+                        ARRAY_ONK=()
+
+                elif (( $i == $POINTS_ONK )); then
+                        if [ $VALUE == $END_ONK ]; then
+                                echo "${ARRAY_ONK[@]}"')' >> $FOLDER/$CSF/onk
+                        else
+                                echo "${ARRAY_ONK[@]} $END_ONK"')' >> $FOLDER/$CSF/onk
+                        fi
+                        ARRAY_ONK=()
+
+                elif (( $i % 15 == 0 )) && (( $i != 0)); then
+                        echo "${ARRAY_ONK[@]}"' \' >> $FOLDER/$CSF/onk
+                        ARRAY_ONK=()
+                fi
+        done
+
+fi
+
+echo "
+\$EXECB << Fine > \$ener'eV_onk.lis'
+" >> $FOLDER/$CSF/onk
+
+ILINE=$(grep -n "INI_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n "END_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$ILINE,$FLINE p" $1 >> "$FOLDER/$CSF/onk"  # Save the states info
+
+echo '
+%INI_SYMETRY_BLOCK' >> "$FOLDER/$CSF/onk"
+
+if [ $GROUP == Cs ]; then
+
+        echo 'SYMOP = Z' >> "$FOLDER/$CSF/onk"
+
+        l1=$(grep -n "ORBITAL SYMMETRIES" $FOLDER/$EIGENVEC | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        l2=$(grep -n "SYMMETRY BLOCKS" $FOLDER/$EIGENVEC | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        sed -n "$((${l1}+2)), $((${l2}-3)) p" $FOLDER/$EIGENVEC > $FOLDER/$CSF/tmp
+        cat $FOLDER/$CSF/tmp >> "$FOLDER/$CSF/onk"
+
+elif [ $GROUP == C2v ]; then
+
+        echo "This $GROUP is not in this script".
+
+elif [ $GROUP == C1 ]; then
+
+        echo 'SYMOP = NO' >> "$FOLDER/$CSF/onk"
+
+else
+        echo "This $GROUP is not in this script".
+
+fi
+
+echo '%END_SYMETRY_BLOCK
+' >> "$FOLDER/$CSF/onk"
+
+ILINE=$(grep -n "INI_QUADTRE_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n "END_QUADTRE_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$ILINE,$FLINE p" $1 >> "$FOLDER/$CSF/onk"  # Save the states info
+
+echo '
+Fine
+
+end' >> "$FOLDER/$CSF/onk"
+
+if [ $GROUP != "C1" ]; then
+
+        for sym in ${SYM[@]}; do
+
+                cp "$FOLDER/$CSF/onk" $FOLDER/$CSF/${sym}
+                rm $FOLDER/$CSF/onk
+                
+        done
+
+fi
