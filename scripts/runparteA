@@ -1,0 +1,641 @@
+#!/bin/bash
+
+# This script create all the structure for the parteA of SMC calculations.
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 24/01/2023
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+
+### Input important informations
+
+if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
+    echo "No input provided"
+    exit 1
+fi
+
+FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
+LOG=$(grep -n "LOG    =" $1 | cut -c12-)
+NUC='nuc.inp'
+DAT=$(grep -n "DAT    =" $1 | cut -c13-)
+VNUC='VNUC.FILE'
+FOCK='FOCK.FILE'
+MOLECULE=$(grep -n " INPUT CARD>...molecule's name:" $FOLDER/$LOG | cut -c38-)  # Find molecule name in input
+GROUP=$(grep -n "THE POINT GROUP OF THE MOLECULE IS" $FOLDER/$LOG | cut -c41-)   # Find the Symmetry group of the molecule
+CSF=$(grep -n "CSF    =" $1 | cut -c13-)  # Find the CSF's construction type
+
+PATH_TO_SIM="$SMC/simetrias/simetrias_conf.x"
+PATH_TO_A="$SMC/a2018/a2018.x"
+PATH_TO_IREAD="$SMC/iread/ReadGamess_$GROUP.x"
+PATH_TO_EIGENVALUES="$SMC/read-eigenvalues/read_eigenvalues.x"
+
+
+### Folder creation 
+
+if [ $GROUP == Cs ]; then
+	SYM=()
+	SYM+=(ap)
+	SYM+=(app)
+	
+	for sym in ${SYM[@]}; do 
+		mkdir -p $FOLDER/$CSF/$sym
+	done
+
+elif [ $GROUP == C2v ]; then
+        SYM=()
+        SYM+=(a1)
+        SYM+=(b1)
+        SYM+=(b2)
+        SYM+=(a2)
+
+        for sym in $(${SYM}[@]); do
+                mkdir -p $FOLDER/$CSF/$sym
+        done
+
+elif [ $GROUP == C1 ]; then
+		mkdir -p $FOLDER/$CSF/
+	
+else
+	echo "This $POINT_GROUP is not in this script".
+	break
+fi
+
+
+### nuc.inp backup
+
+cp $FOLDER/$NUC $FOLDER/$CSF 2>/dev/null
+
+
+### Find the total and occupied orbitals number from .log
+
+NUMBER_OF_ORBITALS=$(grep -n " TOTAL NUMBER OF MOS IN VARIATION SPACE=" $FOLDER/$LOG | awk '{print $9}' | sed 's/[^0-9]*//g')
+NUMBER_OF_OCC_ORBITALS=$(grep -n " ORBITALS ARE OCCUPIED" $FOLDER/$LOG | awk '{print $2}' | sed 's/[^0-9]*//g')
+
+### Here we adjust the nuc.inp file for parteA
+# Search for the number of primitives and do the calculation 
+
+D2_NUMBER=$(grep -o '2d' $FOLDER/basis | wc -l)
+D3_NUMBER=$(grep -o '3d' $FOLDER/basis | wc -l)
+D4_NUMBER=$(grep -o '4d' $FOLDER/basis | wc -l)
+D_NUMBER=$((2*$D2_NUMBER + 3*$D3_NUMBER + 4*$D4_NUMBER))
+
+# Search the line of it in nuc.file
+
+l3=$(grep -n " 1 1 1 1 " $FOLDER/$CSF/$NUC | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
+sed -n "$((${l3}-1)) p" $FOLDER/$CSF/$NUC > $FOLDER/tmp_nuc
+LINE=$(awk -v number="-$D_NUMBER" '$4!=0{$4+=number} 1' $FOLDER/tmp_nuc)
+
+# Substitute into nuc.file
+
+sed -i "$((${l3}-1))d" $FOLDER/$CSF/$NUC
+sed -i "$((${l3}-1)) i \ $LINE " $FOLDER/$CSF/$NUC
+sed -i '1,3d' $FOLDER/$CSF/$NUC
+sed -i '$ d' $FOLDER/$CSF/$NUC
+rm $FOLDER/tmp_nuc
+
+# Obtain the .dat information for parte A input
+
+l1=$(grep -n "VEC" $FOLDER/$DAT | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+l2=$(grep -n "POPULATION ANALYSIS" $FOLDER/$DAT | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+sed -n "$((${l1}+1)),$((${l2}-2)) p" $FOLDER/$DAT > $FOLDER/tmp_dat
+
+# Obtain the energy information for parte A input
+
+ONE_ELEC=$(grep "ONE ELECTRON ENERGY =" $FOLDER/$LOG | sed 's/[^0-9.-]*//g')
+TWO_ELEC=$(grep "TWO ELECTRON ENERGY =" $FOLDER/$LOG | sed 's/[^0-9.-]*//g')
+ENERGY=$(echo "$ONE_ELEC + $TWO_ELEC" | bc)
+
+# eigenvec-sim generation
+
+if [ $GROUP != "C1" ]; then 
+
+echo "#!/bin/csh" >> $FOLDER/iReadGam
+echo "set EXEC = $PATH_TO_IREAD" >> $FOLDER/iReadGam
+echo "/bin/cp $FOLDER/$LOG GMS.LOG" >> $FOLDER/iReadGam
+echo '$EXEC > eigenvec-sim' >> $FOLDER/iReadGam
+echo "/bin/rm GMS.LOG" >> $FOLDER/iReadGam
+chmod +x $FOLDER/iReadGam
+$FOLDER/iReadGam
+rm $FOLDER/iReadGam
+
+fi
+
+# eigenvalues generation
+
+echo '#!/bin/csh
+' > $FOLDER/read_eigenvalues
+echo "set EXEC = $PATH_TO_EIGENVALUES
+
+/bin/cp $FOLDER/$LOG GMS.LOG
+
+"'$EXEC  > eigenvalues
+/bin/rm GMS.LOG
+
+' >> $FOLDER/read_eigenvalues
+chmod +x $FOLDER/read_eigenvalues
+$FOLDER/read_eigenvalues
+
+
+### SEP approximation CSF construction: simetrias input creation and running
+
+if [ $CSF == SEP ]; then
+echo '#!/bin/csh
+' > $FOLDER/simetria.inp
+echo "set EXEC = $PATH_TO_SIM
+" >> $FOLDER/simetria.inp	
+echo '$EXEC << End > simetria.lis' >> $FOLDER/simetria.inp
+
+echo " $NUMBER_OF_ORBITALS  $NUMBER_OF_OCC_ORBITALS  $NUMBER_OF_OCC_ORBITALS $(($NUMBER_OF_ORBITALS-$NUMBER_OF_OCC_ORBITALS)) $(($NUMBER_OF_ORBITALS-$NUMBER_OF_OCC_ORBITALS))  -1  0" >> simetria.inp	
+echo '' >> $FOLDER/simetria.inp
+
+ARRAY=()
+
+for value in $(seq 1 $NUMBER_OF_OCC_ORBITALS); do
+	ARRAY+=($value)
+	
+	if (( $value % 15 == 0 )); then
+	echo " ${ARRAY[@]}" >> $FOLDER/simetria.inp
+	ARRAY=()
+
+	elif (( $value == $NUMBER_OF_OCC_ORBITALS )); then
+	echo " ${ARRAY[@]}" >> $FOLDER/simetria.inp
+        ARRAY=()
+
+	fi
+
+done
+
+echo '' >> $FOLDER/simetria.inp
+ARRAY=()
+
+for value in $(seq $(($NUMBER_OF_OCC_ORBITALS+1)) $NUMBER_OF_ORBITALS); do
+        ARRAY+=($value)
+
+        if (( $value % 15 == 0 )); then
+        echo " ${ARRAY[@]}" >> $FOLDER/simetria.inp
+        ARRAY=()
+
+        elif (( $value == $NUMBER_OF_ORBITALS )); then
+        echo " ${ARRAY[@]}" >> $FOLDER/simetria.inp
+        ARRAY=()
+
+        fi
+done
+
+echo '' >> $FOLDER/simetria.inp
+
+for value in $(seq $(($NUMBER_OF_OCC_ORBITALS+1)) $NUMBER_OF_ORBITALS); do
+        ARRAY+=($value)
+
+        if (( $value % 15 == 0 )); then
+        echo " ${ARRAY[@]}" >> $FOLDER/simetria.inp
+        ARRAY=()
+
+        elif (( $value == $NUMBER_OF_ORBITALS )); then
+        echo " ${ARRAY[@]}" >> $FOLDER/simetria.inp
+        ARRAY=()
+
+        fi
+done
+
+echo '' >> $FOLDER/simetria.inp
+
+if [ $GROUP == Cs ]; then
+	echo "1" >> $FOLDER/simetria.inp
+	
+        l3=$(grep -n "ORBITAL SYMMETRIES" eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        l4=$(grep -n "SYMMETRY BLOCKS" eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        sed -n "$((${l3}+2)), $((${l4}-3)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp2
+        
+	LINE=$(grep -n "$NUMBER_OF_ORBITALS" tmp2 | cut -d: -f1)
+	ARRAY=()
+
+	for column in $(seq 1 15); do
+        	VALUE=$(awk -v line="$LINE" -v col="$column" 'NR == line { print $col }' < $FOLDER/tmp2)
+        	if [ $VALUE -le $NUMBER_OF_ORBITALS ]; then 
+        	ARRAY+=($VALUE)
+        	fi
+	done
+
+	sed -n "/$NUMBER_OF_ORBITALS/q;p" $FOLDER/tmp2 > $FOLDER/tmp3
+	echo ${ARRAY[@]} >> $FOLDER/tmp3
+
+
+	cat $FOLDER/tmp3 >> $FOLDER/simetria.inp
+
+	for sym in ${SYM[@]}; do
+	        cp $FOLDER/simetria.inp $FOLDER/simetria_${sym}.inp 
+	        if [ $sym == ap ]; then
+	                echo '+1' >> $FOLDER/simetria_${sym}.inp
+	        else
+	                echo '-1' >> $FOLDER/simetria_${sym}.inp
+	        fi
+	
+	        echo '' >> $FOLDER/simetria_${sym}.inp
+	
+	                cp $FOLDER/simetria_${sym}.inp $FOLDER/simetria_${sym}-tmp.inp
+
+                ENERSYM=-1
+
+                echo "$ENERSYM" >> $FOLDER/simetria_${sym}.inp
+                echo '' >> $FOLDER/simetria_${sym}.inp
+
+                cat $FOLDER/eigenvalues >> $FOLDER/simetria_${sym}.inp
+                chmod +x $FOLDER/simetria_${sym}.inp
+                $FOLDER/simetria_${sym}.inp
+                mv $FOLDER/simetria_${sym}.lis $FOLDER/$CSF/ 2>/dev/null
+
+                options=("Yes" "Try a diferent energy")
+                POLAR=$( tail -n 1 $FOLDER/$CSF/simetria_${sym}.lis | sed 's/[^0-9]*//g' )
+                echo "
+                For this $sym, the energy of $ENERSYM Hartree generates $POLAR configurations. Is it good for you?
+                "
+                select opt in "${options[@]}"
+                do
+                        case $opt in
+                                "Yes")
+                                        echo "
+                                Ok! You choose the energy $ENERSYM Hartree for $sym representation.
+                                        "
+                                        rm $FOLDER/simetria_${sym}_tmp.inp
+                                        break
+                                        ;;
+                                "Try a diferent energy")
+                                        echo "
+                                Let us try another energy:
+                                        "
+
+                                        cp $FOLDER/simetria_${sym}_tmp.inp $FOLDER/simetria_${sym}.inp
+                                        read -p "What is the energy (in Hartree) for $sym? " ENERSYM
+
+                                        echo "$ENERSYM" >> $FOLDER/simetria_${sym}.inp
+                                        echo '' >> $FOLDER/simetria_${sym}.inp
+
+                                        cat $FOLDER/eigenvalues >> $FOLDER/simetria_${sym}.inp
+                                        chmod +x $FOLDER/simetria_${sym}.inp
+                                        $FOLDER/simetria_${sym}.inp
+                                        mv $FOLDER/simetria.lis $FOLDER/$CSF/${sym} 2>/dev/null
+
+                                        POLAR=$( tail -n 1 $FOLDER/$CSF/simetria_${sym}.lis | sed 's/[^0-9]*//g' )
+                                        echo "
+                                The energy of $ENERSYM Hartree generates $POLAR configurations for $sym representation. Is it good for you?
+                                        "
+
+                                        ;;
+                                *)
+                                PS3="" # this hides the prompt
+                                echo asdf | select foo in "${options[@]}"; do break; done # dummy select 
+                                PS3="What option do you choose? (1 or 2)" # this displays the common prompt
+                                ;;
+                        esac
+
+                done
+	done
+	
+
+elif [ $GROUP == C2v ]; then
+	echo "2" >> $FOLDER/simetria.inp
+
+	l3=$(grep -n "ORBITAL SYMMETRIES" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        l4=$(grep -n "SYMMETRY BLOCKS" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        sed -n "$((${l3}+2)), $((${l4}-3)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp2
+
+        LINE=$(grep -n "$NUMBER_OF_ORBITALS" $FOLDER/tmp2 | cut -d: -f1)
+        ARRAY=()
+
+        for column in $(seq 1 15); do
+                VALUE=$(awk -v line="$LINE" -v col="$column" 'NR == line { print $col }' < $FOLDER/tmp2)
+                if [ $VALUE -le $NUMBER_OF_ORBITALS ]; then
+                ARRAY+=($VALUE)
+                fi
+        done
+
+        sed -n "/$NUMBER_OF_ORBITALS/q;p" $FOLDER/tmp2 > $FOLDER/tmp3
+        echo ${ARRAY[@]} >> $FOLDER/tmp3
+
+
+        cat $FOLDER/tmp3 >> $FOLDER/simetria.inp
+
+
+        for sym in ${SYM[@]}; do
+                cp $FOLDER/simetria.inp $FOLDER/simetria_${sym}.inp
+	        if [ $sym == a1 ]; then
+                echo '+1
++1' >> $FOLDER/simetria_${sym}.inp
+                elif [ $sym == a2 ]; then
+                echo '-1
+-1' >> $FOLDER/simetria_${sym}.inp
+                elif [ $sym == b1 ]; then
+                echo '+1
+-1' >> $FOLDER/simetria_${sym}.inp
+                elif [ $sym == b2 ]; then
+                echo '-1
++1' >> $FOLDER/simetria_${sym}.inp
+ 
+                fi
+
+                echo '' >> $FOLDER/simetria_${sym}.inp
+
+                cp $FOLDER/simetria_${sym}.inp $FOLDER/simetria_${sym}-tmp.inp
+
+                ENERSYM=-1
+
+                echo "$ENERSYM" >> $FOLDER/simetria_${sym}.inp
+                echo '' >> $FOLDER/simetria_${sym}.inp
+
+                cat $FOLDER/eigenvalues >> $FOLDER/simetria_${sym}.inp
+                chmod +x $FOLDER/simetria_${sym}.inp
+                $FOLDER/simetria_${sym}.inp
+                mv $FOLDER/simetria_${sym}.lis $FOLDER/$CSF/ 2>/dev/null
+
+                options=("Yes" "Try a diferent energy")
+                POLAR=$( tail -n 1 $FOLDER/$CSF/simetria_${sym}.lis | sed 's/[^0-9]*//g' )
+                echo "
+                For this $sym, the energy of $ENERSYM Hartree generates $POLAR configurations. Is it good for you?
+                "
+                select opt in "${options[@]}"
+                do
+                        case $opt in
+                                "Yes")
+                                        echo "
+                                Ok! You choose the energy $ENERSYM Hartree for $sym representation.
+                                        "
+                                        rm $FOLDER/simetria_${sym}_tmp.inp
+                                        break
+                                        ;;
+                                "Try a diferent energy")
+                                        echo "
+                                Let us try another energy:
+                                        "
+
+                                        cp $FOLDER/simetria_${sym}_tmp.inp $FOLDER/simetria_${sym}.inp
+                                        read -p "What is the energy (in Hartree) for $sym? " ENERSYM
+
+                                        echo "$ENERSYM" >> $FOLDER/simetria_${sym}.inp
+                                        echo '' >> $FOLDER/simetria_${sym}.inp
+
+                                        cat $FOLDER/eigenvalues >> $FOLDER/simetria_${sym}.inp
+                                        chmod +x $FOLDER/simetria_${sym}.inp
+                                        $FOLDER/simetria_${sym}.inp
+                                        mv $FOLDER/simetria.lis $FOLDER/$CSF/${sym} 2>/dev/null
+
+                                        POLAR=$( tail -n 1 $FOLDER/$CSF/simetria_${sym}.lis | sed 's/[^0-9]*//g' )
+                                        echo "
+                                The energy of $ENERSYM Hartree generates $POLAR configurations for $sym representation. Is it good for you?
+                                        "
+
+                                        ;;
+                                *)
+                                PS3="" # this hides the prompt
+                                echo asdf | select foo in "${options[@]}"; do break; done # dummy select 
+                                PS3="What option do you choose? (1 or 2)" # this displays the common prompt
+                                ;;
+                        esac
+
+                done
+   
+        done
+
+
+elif [ $GROUP == C1 ]; then
+
+
+        echo "1" >> $FOLDER/simetria.inp
+        ARRAY=()
+
+        for value in $(seq 1 $NUMBER_OF_ORBITALS); do
+                ARRAY+=($value)
+
+                if (( $value % 15 == 0 )); then
+                        echo " ${ARRAY[@]}" >> $FOLDER/simetria.inp
+                        ARRAY=()
+
+                elif (( $value == $NUMBER_OF_ORBITALS )); then
+                        echo " ${ARRAY[@]}" >> $FOLDER/simetria.inp
+                        ARRAY=()
+
+                fi
+        done
+
+        echo '+1' >> $FOLDER/simetria.inp
+
+        echo '' >> $FOLDER/simetria.inp
+
+        cp $FOLDER/simetria.inp $FOLDER/simetria_tmp.inp
+
+        ENERSYM=-1
+
+        echo "$ENERSYM" >> $FOLDER/simetria.inp
+        echo '' >> $FOLDER/simetria.inp
+
+        cat $FOLDER/eigenvalues >> $FOLDER/simetria.inp
+        chmod +x $FOLDER/simetria.inp
+        $FOLDER/simetria.inp
+        mv $FOLDER/simetria.lis $FOLDER/$CSF/ 2>/dev/null
+
+        options=("Yes" "Try a diferent energy")
+        POLAR=$( tail -n 1 $FOLDER/$CSF/simetria.lis | sed 's/[^0-9]*//g' )
+        echo "
+        The energy of $ENERSYM Hartree generates $POLAR configurations. Is it good for you?
+        "
+        select opt in "${options[@]}"
+        do
+                case $opt in
+                        "Yes")
+                                echo "
+                                Ok! You choose the energy $ENERSYM Hartree.
+                                "
+                                rm $FOLDER/simetria_tmp.inp
+                                break
+                                ;;
+                        "Try a diferent energy")
+                                echo "
+                                Let us try another energy:
+                                "
+
+                                cp $FOLDER/simetria_tmp.inp $FOLDER/simetria.inp
+                                read -p "What is the energy (in Hartree)? " ENERSYM
+
+                                echo "$ENERSYM" >> $FOLDER/simetria.inp
+                                echo '' >> $FOLDER/simetria.inp
+
+                                cat $FOLDER/eigenvalues >> $FOLDER/simetria.inp
+                                chmod +x $FOLDER/simetria.inp
+                                $FOLDER/simetria.inp
+                                mv $FOLDER/simetria.lis $FOLDER/$CSF/ 2>/dev/null
+
+                                POLAR=$( tail -n 1 $FOLDER/$CSF/simetria.lis | sed 's/[^0-9]*//g' )
+                                echo "
+                                The energy of $ENERSYM Hartree generates $POLAR configurations. Is it good for you?
+                                "
+
+                                ;;
+                        *)
+                        PS3="" # this hides the prompt
+                        echo asdf | select foo in "${options[@]}"; do break; done # dummy select 
+                        PS3="What option do you choose? (1 or 2)" # this displays the common prompt
+                        ;;
+                esac
+
+        done
+
+fi
+
+fi
+
+
+### parteA input creation 
+
+CONT=0
+
+ILINE=$(grep -n "INI_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n "END_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$ILINE,$FLINE p" $1 > $FOLDER/parteA_tmp  # Save the states info
+sed -i "2 i $MOLECULE" $FOLDER/parteA_tmp
+
+
+if [ $GROUP == "C1" ]; then
+
+	cp $FOLDER/{$VNUC,$FOCK} $FOLDER/$CSF/
+
+	if [ $CSF == SEP ]; then
+                LINE1=$(grep -n "MOB-SCI" $FOLDER/$CSF/$sym/simetria.lis | sed 's/[^0-9.]*//g')
+                NUMBER=$(sed -n "$(($LINE1+1)) p" $FOLDER/$CSF/$sym/simetria.lis)
+                CSF_SEP=$( sed -n "$(($LINE1+1)) p" $FOLDER/$CSF/$sym/simetria.lis | cut -c5-)
+                CSF_SE="${NUMBER:0:4}"
+
+                LINE2=$(wc -l $FOLDER/$CSF/$sym/simetria.lis | awk '{print $1}')
+                sed -n "$(($LINE1+2)),$(($LINE2-2)) p" $FOLDER/$CSF/$sym/simetria.lis > $FOLDER/$CSF/$sym/tmp
+        else
+                for i in $(seq $(($NUMBER_OF_OCC_ORBITALS+1)) $NUMBER_OF_ORBITALS); do echo $i >> $FOLDER/$CSF/tmp; done
+		CSF_SE=$(wc -l < $FOLDER/$CSF/tmp)
+                CSF_SEP=0
+        fi
+
+        echo '#!/bin/csh
+
+'"set EXECA = $PATH_TO_A
+
+"'$EXECA << final > '"a.dat 
+                
+"> $FOLDER/$CSF/a
+
+        cat $FOLDER/parteA_tmp >> $FOLDER/$CSF/a
+
+        echo "
+
+%INI_WAVEFUN_BLOCK
+$((${NUMBER_OF_OCC_ORBITALS}*2))  $NUMBER_OF_OCC_ORBITALS  $CSF_SE  $CSF_SEP  1  7  0  0
+1  0  0" >> $FOLDER/$CSF/a
+
+        cat $FOLDER/$CSF/tmp >> $FOLDER/$CSF/a
+
+        echo "%END_WAVEFUN_BLOCK
+
+
+%INI_ORBITAL_BLOCK" >> $FOLDER/$CSF/a
+
+        cat $FOLDER/$CSF/$NUC >> $FOLDER/$CSF/a
+                
+        echo "
+00
+" >> $FOLDER/$CSF/a
+
+        cat $FOLDER/tmp_dat >> $FOLDER/$CSF/a
+
+        echo "$ENERGY
+%END_ORBITAL_BLOCK
+final" >> $FOLDER/$CSF/a
+
+        chmod +x $FOLDER/$CSF/a
+
+else 
+
+        for sym in ${SYM[@]}; do
+
+	        cp $FOLDER/{$VNUC,$FOCK,eigenvec-sim} $FOLDER/$CSF/$sym/
+
+	        if [ $APPROX == SEP ]; then
+		        LINE1=$(grep -n "MOB-SCI" $FOLDER/$CSF/$sym/simetria.lis | sed 's/[^0-9.]*//g')
+		        NUMBER=$(sed -n "$(($LINE1+1)) p" $FOLDER/parteA/$CSF/$sym/simetria.lis)
+		        CSF_SEP=$( sed -n "$(($LINE1+1)) p" $FOLDER/$CSF/$sym/simetria.lis | cut -c5-)
+		        CSF_SE="${NUMBER:0:4}" 
+
+		        LINE2=$(wc -l $FOLDER/$CSF/$sym/simetria.lis | awk '{print $1}')
+		        sed -n "$(($LINE1+2)),$(($LINE2-2)) p" $FOLDER/$CSF/$sym/simetria.lis > $FOLDER/CSF/$sym/tmp
+	        else
+		        CONT=$(($CONT+1))
+		        LINE1=$(grep -n "BLOCK $CONT" $FOLDER/$CSF/eigenvec-sim | awk '{print $1}' | tr -d :)
+		
+			if [ $CONT == ${#SYM[@]} ]; then
+				LINE2=$(wc -l $FOLDER/$CSF/eigenvec-sim |  awk '{print $1}')
+			else
+				TMP2=$(grep -n "BLOCK $(($CONT+1))" $FOLDER/$CSF/eigenvec-sim | awk '{print $1}' | tr -d :)
+				LINE2=$(($TMP2-2))
+			fi
+
+		        sed -n "$(($LINE1+1)),$LINE2 p" $FOLDER/$CSF/eigenvec-sim > $FOLDER/$CSF/tmp
+		        tr -s ' '  '\n'< $FOLDER/$CSF/tmp > $FOLDER/$CSF/out
+		        sed -i '1d' $FOLDER/$CSF/out
+		        awk -v tmp=$NUMBER_OF_OCC_ORBITALS '(NR>=1) && ($1 > tmp ) ' $FOLDER/$CSF/out > $FOLDER/$CSF/block
+		        awk -v tmp=$NUMBER_OF_ORBITALS '(NR>=1) && ($1 <= tmp ) ' $FOLDER/$CSF/block > $FOLDER/$CSF/$sym/tmp
+		        CSF_SE=$(wc -l < $FOLDER/$CSF/$sym/tmp)
+		        CSF_SEP=0
+	        fi
+        
+        echo '#!/bin/csh
+
+'"set EXECA = $PATH_TO_A
+
+"'$EXECA << final > '"${sym}-a.dat 
+                
+"> $FOLDER/$CSF/${sym}-a
+
+        cat $FOLDER/parteA_tmp >> $FOLDER/$CSF/$sym/${sym}-a
+
+        echo "
+
+%INI_WAVEFUN_BLOCK
+$((${NUMBER_OF_OCC_ORBITALS}*2))  $NUMBER_OF_OCC_ORBITALS  $CSF_SE  $CSF_SEP  1  7  0  0
+1  0  0" > $FOLDER/$CSF/$sym/${sym}-a
+
+	cat $FOLDER/$CSF/$sym/tmp >> $FOLDER/$CSF/$sym/${sym}-a
+
+	echo "%END_WAVEFUN_BLOCK
+
+
+%INI_ORBITAL_BLOCK" >> $FOLDER/$CSF/$sym/${sym}-a
+
+	cat $FOLDER/$CSF/$NUC >> $FOLDER/$CSF/$sym/${sym}-a
+	
+        echo "
+00
+                " >> $FOLDER/$CSF/$sym/${sym}-a
+		
+	cat $FOLDER/tmp_dat >> $FOLDER/$CSF/$sym/${sym}-a
+		
+	echo "$ENERGY
+%END_ORBITAL_BLOCK
+final" >> $FOLDER/$CSF/$sym/${sym}-a
+        
+        chmod +x $FOLDER/$CSF/$sym/${sym}-a
+
+        done
+
+fi
+
+
+### Clear some files and save the simmetry group and name of the molecule in eigenvec-sim for parteB
+
+rm $FOLDER/*tmp* $FOLDER/*eigenvalues $FOLDER/simetria.inp $FOLDER/$CSF/*tmp* $FOLDER/$CSF/$NUC 2>/dev/null
+
+if [ ! -e $FOLDER/eigenvec-sim ]; then
+
+  echo "$MOLECULE" > $FOLDER/eigenvec-sim
+  echo "$GROUP" >> $FOLDER/eigenvec-sim
+
+else
+
+sed -i "1 i $GROUP" $FOLDER/eigenvec-sim 
+sed -i "1 i $MOLECULE" $FOLDER/eigenvec-sim 
+
+fi
