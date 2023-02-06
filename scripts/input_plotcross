@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# This is the input for plotcross of SMCPP (parteB).
+
+# DO NOT LEAVE ANY FREE SPACE AFTER THE ARGUMENT. REMEMBER TO LEAVE THE SPACES BETWEEN
+
+# CSF's construction type
+CSF    = SE
+
+# Plot type (CROSS, INECROSS, GTOG)
+TYPE   = CROSS

@@ -1,0 +1,138 @@
+#!/bin/bash
+
+# This script generate the modified orbitals from a SMC pseudo-spectrum analysis (script_p).
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 04/10/2022
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+### Input information
+
+if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
+    echo "No input provided"
+    exit 1
+fi
+
+LOGLINE=$(grep -n "LOG" $1 | cut -c1)  # Find the line of the .log file in input
+LOG=$(sed -n "5 p" $1 | cut -c5-) # Take .log file from input
+
+NBF=$(grep -n "NUMBER OF CARTESIAN GAUSSIAN BASIS FUNCTIONS =" $LOG | cut -c52-)  # Find the total number of basis
+
+FOLDER=$(dirname $LOG)  # Find the work folder
+
+ILINE=$(grep -n " BEGIN" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n " END" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$((${ILINE}+1)),$((${FLINE}-1)) p" $1 > $FOLDER/tmp  # Save the states info
+
+awk '{ print $1 }' $FOLDER/tmp > $FOLDER/tmp2  # Take the number of orbitals in each state required
+NSTATES=( $( cat $FOLDER/tmp2 ) )  # Save it in an array
+rm $FOLDER/tmp2  # Remove temporary file
+
+TLINES=$(wc -l $FOLDER/tmp | awk '{print $1}') # Find the last line of the states info
+ORBCOE=()
+for LINE in $(seq 1 $TLINES); do
+	ORBCOE+=($(awk '{$1=""}1' $FOLDER/tmp | sed -n "${LINE}p" ))  # Save the orbitals and its coeficients
+done
+
+#echo ${ORBCOE[@]}
+
+### Obtain from the .log file (parteA - GAMESSMC) the import range of lines to modify
+
+ILINE=$(grep -n "EIGENVECTORS" $LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Initial line
+FLINE=$(grep -n "...... END OF RHF CALCULATION ......" $LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Final line
+sed -n "$((${ILINE}+3)),$((${FLINE}-1)) p" $LOG > $FOLDER/tmp  # Saving it
+
+
+### Find the psudo-states main orbitals (analyzed from the pseudo-spactrum) and copy important columns for oher file in order to opetate it
+
+TRACKER=1  # Just to help naming the files (each number correspond to one state)
+SUM=0  # Creating the sum float
+JUMP=0  # Necessary to walk on the vector
+
+for STATES in ${NSTATES[@]}; do  # For loop in each state required. 
+	
+	for ORBITAL in $(seq 1 $STATES); do  # For loop for all orbitals that employed in each state
+			
+		ELEMENT=$((2*$ORBITAL-2+$JUMP))  # Find the element of the array that correspond to the orbital required
+		ORB=${ORBCOE[$ELEMENT]}  # Get the orbital
+		ORBCOLUMN=$(($ORB%5))  # Find the column in the .log file responsable to the required orbital using the rest of quocient
+	    	
+		if [[ $ORBCOLUMN == 0 ]]; then  # If the quocient of the orbital number by 5 is exact, then  
+			IORBLINE=$((($ORB/5 -1)*($NBF+4)+4))  # We should find this line in .log  
+		        FORBLINE=$(($IORBLINE+$NBF-1))
+			sed -n "$IORBLINE,$FORBLINE p" $FOLDER/tmp > $FOLDER/${TRACKER}_$ORBITAL  # Cut and save it
+
+			paste <(awk '{print $9}' $FOLDER/${TRACKER}_$ORBITAL) > tmp2  # Take only the important column
+			mv tmp2 $FOLDER/${TRACKER}_$ORBITAL  # Rename it 
+
+		else  # If the quocient of the orbital number by 5 is not exact, then
+			IORBLINE=$(($ORB/5*($NBF+4)+4))  # We should find this line in .log 
+			FORBLINE=$(($IORBLINE+$NBF-1))
+			sed -n "$IORBLINE,$FORBLINE p" $FOLDER/tmp > $FOLDER/${TRACKER}_$ORBITAL  # Cut and save it
+
+			COLUMN=$(($ORBCOLUMN+4))  # We should translate it in order to obtain the right column
+			paste <(awk -v COLUMN=$COLUMN '{print $COLUMN}' $FOLDER/${TRACKER}_$ORBITAL) > tmp2  # Take only the important column
+			mv tmp2 $FOLDER/${TRACKER}_$ORBITAL  # Rename it
+		fi
+
+### Find the coefficients in input and solve the Eq. to obtain the value to fix the probabilities
+
+		ELEMENT=$((2*$ORBITAL-1+$JUMP))  # Find the coefficient of the array that correspond to the orbital required
+		COEF=${ORBCOE[$ELEMENT]}  # Get the coefficient
+		SUM=$(echo "$SUM+$COEF*$COEF" | bc -l)  # First part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
+	done
+
+	NEWCOEFF=$(echo "sqrt($SUM)" | bc -l)  # Second part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
+	NEWCOEFF=$(echo "1/$NEWCOEFF" | bc -l)  # Third part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
+
+
+### Operate the date and save the results
+
+	perl -i -lpe '$_=$_'*$NEWCOEFF $FOLDER/${TRACKER}_*  # Multiply the coef. by x to rebuild normalization
+
+	paste $FOLDER/${TRACKER}_* | perl -MList::Util=sum -lane 'print sum(@F)' > $FOLDER/${TRACKER}  # Sum all the renormalized orbitals to obtain the final state
+	LC_ALL="C" awk '{printf("%.6f\n", $1)}' $FOLDER/${TRACKER} > $FOLDER/tmp2   # Just adjusting the number of decimal numbers
+	LC_ALL="C" awk '{printf "%9s\n", $1}' $FOLDER/tmp2 > $FOLDER/${TRACKER}  #
+	rm $FOLDER/${TRACKER}_* $FOLDER/tmp2
+		
+
+	### Rebuild the input e save it.
+
+	sed '/EIGENVECTORS/q' $LOG > $FOLDER/${TRACKER}.final
+	echo '          ------------
+	' >> $FOLDER/${TRACKER}.final
+
+	sed '1,3d' $FOLDER/tmp > $FOLDER/tmp2
+	sed -i "1,$NBF ! d" $FOLDER/tmp2
+	
+	rm -f tmp3
+	for line in $(seq 1 $NBF); do
+        	sed "${line}q;d" $FOLDER/tmp2 | cut -c1-14 >> $FOLDER/tmp3
+	done
+	
+	paste $FOLDER/tmp3 $FOLDER/${TRACKER} >> $FOLDER/tmp5
+      
+      	sed -i '1i\                    1' $FOLDER/tmp5
+        sed -i '2i\                  0.0000' $FOLDER/tmp5
+        sed -i '3i\                   A' $FOLDER/tmp5
+	cat $FOLDER/tmp5 >> $FOLDER/${TRACKER}.final
+
+	sed '/...... END OF RHF CALCULATION ....../,$!d' $LOG >> $FOLDER/${TRACKER}.final
+
+	rm $FOLDER/tmp5 $FOLDER/tmp2 $FOLDER/tmp3 $FOLDER/${TRACKER}
+
+	SUM=0  # Reboot sum 
+	TRACKER=$(($TRACKER+1))  # Update the tracker for other states
+	JUMP=$(($JUMP+$STATES*2))  # Necessary to walk on the vector
+done
+
+rm $FOLDER/tmp*  # Remove temporary file 
+
+
+
+
+
+### Rebuild the input e save it.
+
+
+
+

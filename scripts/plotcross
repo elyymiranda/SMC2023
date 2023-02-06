@@ -1,0 +1,215 @@
+#!/bin/bash
+
+# This script organize the cross-section data upon energy for future plot (table view).
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 06/02/2023
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+### Input information
+
+FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
+CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')
+GROUP=$(sed -n '2p' eigenvec-sim)   # Find the Symmetry group of the molecule
+TYPE=$(grep "^TYPE" $1 | cut -d "=" -f 2 | sed 's/ //g')
+
+if [ $TYPE == CROSS ]; then
+    TYPE="OPTICAL THEOREM"
+    
+
+elif [ $TYPE == INECROSS ]; then
+    TYPE="INELASTIC"
+
+elif [ $TYPE == GTOG ]; then
+    TYPE="FROM GROUND"
+
+fi
+
+
+### Search for files in folder and create arrays.
+
+if [ $GROUP == Cs ]; then
+    SYM=()
+    SYM+=(ap)
+    SYM+=(app)
+
+    for sym in ${SYM[@]}; do
+                
+        ARRAY_LIS=($(ls -1 $FOLDER/$CSF/$sym/*.lis | awk -F/ '{print $NF}'))
+
+        rm $FOLDER/$CSF/$sym/*.dat 2> /dev/null
+
+        for lis in ${ARRAY_LIS[@]}; do
+
+            INVERT=$(grep "*** INVERT" $FOLDER/$CSF/$sym/$lis | cut -d "=" -f 2 | sed 's/ //g' | sed 's/\*//g')
+            if [ $INVERT == "SVD_KMT" ]; then
+
+                SVDPTS=$(grep " SVDPTS" $FOLDER/$CSF/$sym/$lis | cut -d "=" -f 2 | sed 's/ //g' )
+
+                for point in $(seq 0 $(($SVDPTS-1))); do
+                    grep "0$point $TYPE" $FOLDER/$CSF/$sym/$lis >> $FOLDER/$CSF/$sym/svd$point.ics
+                    sed -i 's/=/= /g' $FOLDER/$CSF/$sym/svd$point.ics
+
+                    if [ "$TYPE" == "INELASTIC" ]; then
+                        awk '{print $3,$11}' $FOLDER/$CSF/$sym/svd$point.ics >> $FOLDER/$CSF/$sym/svd$point.dat
+
+                    else
+                        awk '{print $3,$12}' $FOLDER/$CSF/$sym/svd$point.ics >> $FOLDER/$CSF/$sym/svd$point.dat
+
+                    fi
+                
+                    rm $FOLDER/$CSF/$sym/*.ics   
+                    sort -n $FOLDER/$CSF/$sym/svd$point.dat > $FOLDER/$CSF/$sym/tmp
+                    mv $FOLDER/$CSF/$sym/tmp $FOLDER/$CSF/$sym/svd$point.dat  
+
+                done
+
+            else
+
+                point=0
+                grep "0$point $TYPE" $FOLDER/$CSF/$sym/$lis >> $FOLDER/$CSF/$sym/svd$point.ics
+                sed -i 's/=/= /g' $FOLDER/$CSF/$sym/svd$point.ics
+
+                if [ "$TYPE" == "INELASTIC" ]; then
+                    awk '{print $3,$11}' $FOLDER/$CSF/$sym/svd$point.ics >> $FOLDER/$CSF/$sym/svd$point.dat
+
+                else
+                    awk '{print $3,$12}' $FOLDER/$CSF/$sym/svd$point.ics >> $FOLDER/$CSF/$sym/svd$point.dat
+                            
+                fi
+
+                rm $FOLDER/$CSF/$sym/*.ics   
+                sort -n $FOLDER/$CSF/$sym/svd$point.dat > $FOLDER/$CSF/$sym/tmp
+                mv $FOLDER/$CSF/$sym/tmp $FOLDER/$CSF/$sym/svd$point.dat                                   
+
+                
+            fi
+            
+        done
+
+    done
+
+elif [ $GROUP == C2v ]; then
+    SYM=()
+    SYM+=(a1)
+    SYM+=(b1)
+    SYM+=(b2)
+    SYM+=(a2)
+
+    for sym in ${SYM[@]}; do
+                
+        ARRAY_LIS=($(ls -1 $FOLDER/$CSF/$sym/*.lis | awk -F/ '{print $NF}'))
+
+        rm $FOLDER/$CSF/$sym/*.dat 2> /dev/null
+
+        for lis in ${ARRAY_LIS[@]}; do
+
+            INVERT=$(grep "*** INVERT" $FOLDER/$CSF/$sym/$lis | cut -d "=" -f 2 | sed 's/ //g' | sed 's/\*//g')
+            if [ $INVERT == "SVD_KMT" ]; then
+
+                SVDPTS=$(grep " SVDPTS" $FOLDER/$CSF/$sym/$lis | cut -d "=" -f 2 | sed 's/ //g' )
+
+                for point in $(seq 0 $(($SVDPTS-1))); do
+                    grep "0$point $TYPE" $FOLDER/$CSF/$sym/$lis >> $FOLDER/$CSF/$sym/svd$point.ics
+                    sed -i 's/=/= /g' $FOLDER/$CSF/$sym/svd$point.ics
+
+                    if [ "$TYPE" == "INELASTIC" ]; then
+                        awk '{print $3,$11}' $FOLDER/$CSF/$sym/svd$point.ics >> $FOLDER/$CSF/$sym/svd$point.dat
+
+                    else
+                        awk '{print $3,$12}' $FOLDER/$CSF/$sym/svd$point.ics >> $FOLDER/$CSF/$sym/svd$point.dat
+                            
+                    fi
+
+                    rm $FOLDER/$CSF/$sym/*.ics   
+                    sort -n $FOLDER/$CSF/$sym/svd$point.dat > $FOLDER/$CSF/$sym/tmp
+                    mv $FOLDER/$CSF/$sym/tmp $FOLDER/$CSF/$sym/svd$point.dat  
+
+                 done
+
+            else
+
+                point=0
+                grep "0$point $TYPE" $FOLDER/$CSF/$sym/$lis >> $FOLDER/$CSF/$sym/svd$point.ics
+                sed -i 's/=/= /g' $FOLDER/$CSF/$sym/svd$point.ics
+
+                if [ "$TYPE" == "INELASTIC" ]; then
+                    awk '{print $3,$11}' $FOLDER/$CSF/$sym/svd$point.ics >> $FOLDER/$CSF/$sym/svd$point.dat
+
+                else
+                    awk '{print $3,$12}' $FOLDER/$CSF/$sym/svd$point.ics >> $FOLDER/$CSF/$sym/svd$point.dat
+                            
+                fi
+
+                rm $FOLDER/$CSF/$sym/*.ics   
+                sort -n $FOLDER/$CSF/$sym/svd$point.dat > $FOLDER/$CSF/$sym/tmp
+                mv $FOLDER/$CSF/$sym/tmp $FOLDER/$CSF/$sym/svd$point.dat           
+            
+            fi
+
+            
+        done
+
+    done
+    
+
+elif [ $GROUP == C1 ]; then
+                              
+    ARRAY_LIS=($(ls $FOLDER/$CSF/*.lis | awk -F/ '{print $NF}'))
+
+    rm $FOLDER/$CSF/*.dat 2> /dev/null
+
+    for lis in ${ARRAY_LIS[@]}; do
+
+        INVERT=$(grep "*** INVERT" $FOLDER/$CSF/$lis | cut -d "=" -f 2 | sed 's/ //g' | sed 's/\*//g')
+        if [ $INVERT == "SVD_KMT" ]; then
+
+            SVDPTS=$(grep " SVDPTS" $FOLDER/$CSF/$lis | cut -d "=" -f 2 | sed 's/ //g' )
+
+            for point in $(seq 0 $(($SVDPTS-1))); do
+                grep "0$point $TYPE" $FOLDER/$CSF/$lis >> $FOLDER/$CSF/svd$point.ics
+                sed -i 's/=/= /g' $FOLDER/$CSF/svd$point.ics
+
+                if [ "$TYPE" == "INELASTIC" ]; then
+                    awk '{print $3,$11}' $FOLDER/$CSF/svd$point.ics >> $FOLDER/$CSF/svd$point.dat
+
+                else
+                    awk '{print $3,$12}' $FOLDER/$CSF/svd$point.ics >> $FOLDER/$CSF/svd$point.dat
+                            
+                fi
+
+                rm $FOLDER/$CSF/*.ics
+                sort -n $FOLDER/$CSF/svd$point.dat > $FOLDER/$CSF/tmp
+                mv $FOLDER/$CSF/tmp $FOLDER/$CSF/svd$point.dat
+
+            done
+
+
+        else 
+
+            point=0
+            grep "0$point $TYPE" $FOLDER/$CSF/$lis >> $FOLDER/$CSF/svd$point.ics
+            sed -i 's/=/= /g' $FOLDER/$CSF/svd$point.ics
+
+            if [ "$TYPE" == "INELASTIC" ]; then
+                awk '{print $3,$11}' $FOLDER/$CSF/svd$point.ics >> $FOLDER/$CSF/svd$point.dat
+
+            else
+                awk '{print $3,$12}' $FOLDER/$CSF/svd$point.ics >> $FOLDER/$CSF/svd$point.dat
+                            
+            fi   
+
+            rm $FOLDER/$CSF/*.ics    
+            sort -n $FOLDER/$CSF/svd$point.dat > $FOLDER/$CSF/tmp
+            mv $FOLDER/$CSF/tmp $FOLDER/$CSF/svd$point.dat     
+
+        fi
+            
+    done
+    
+
+else
+        echo "This $GROUP is not in this script".
+        break
+fi
+
+

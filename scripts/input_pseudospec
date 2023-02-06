@@ -18,3 +18,7 @@ JOBTYP = SEL
 ELOWER =  -5.0
 EUPPER = 20.0
 
+# SE CSF's pseudo-eigenstates configuration
+MIN_ENERG =-3.0
+MAX_ENERG = 10
+THRESHOLD = 0.3
