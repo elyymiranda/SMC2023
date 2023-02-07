@@ -28,16 +28,16 @@ PATH_TO_B="$SMC/b2018/teste/1/b2018.x"
 
 ### Folder creation 
 
-if [ $GROUP == Cs ]; then
+if [ $GROUP == CS ]; then
         SYM=()
         SYM+=(ap)
         SYM+=(app)
 
         for sym in ${SYM[@]}; do
-                mkdir -p $DIRETORY/$CSF/$sym
+                mkdir -p $FOLDER/$CSF/$sym
         done
 
-elif [ $GROUP == C2v ]; then
+elif [ $GROUP == C2V ]; then
         SYM=()
         SYM+=(a1)
         SYM+=(b1)
@@ -46,7 +46,7 @@ elif [ $GROUP == C2v ]; then
         echo "This $GROUP is not in this script".
 
         for sym in $(${SYM}[@]); do
-                mkdir -p $DIRETORY/$CSF/$sym
+                mkdir -p $FOLDER/$CSF/$sym
         done
 
 elif [ $GROUP == C1 ]; then
@@ -137,7 +137,7 @@ sed -n "$ILINE,$FLINE p" $1 >> "$FOLDER/$CSF/onk"  # Save the states info
 echo '
 %INI_SYMETRY_BLOCK' >> "$FOLDER/$CSF/onk"
 
-if [ $GROUP == Cs ]; then
+if [ $GROUP == CS ]; then
 
         echo 'SYMOP = Z' >> "$FOLDER/$CSF/onk"
 
@@ -146,7 +146,7 @@ if [ $GROUP == Cs ]; then
         sed -n "$((${l1}+2)), $((${l2}-3)) p" $FOLDER/$EIGENVEC > $FOLDER/$CSF/tmp
         cat $FOLDER/$CSF/tmp >> "$FOLDER/$CSF/onk"
 
-elif [ $GROUP == C2v ]; then
+elif [ $GROUP == C2V ]; then
 
         echo "This $GROUP is not in this script".
 
@@ -176,8 +176,11 @@ if [ $GROUP != "C1" ]; then
         for sym in ${SYM[@]}; do
 
                 cp "$FOLDER/$CSF/onk" $FOLDER/$CSF/${sym}
-                rm $FOLDER/$CSF/onk
-                
+                                
         done
 
+rm $FOLDER/$CSF/onk
+
 fi
+
+rm $FOLDER/$CSF/tmp

@@ -2,7 +2,7 @@
 
 # This script create all the structure for the parteA of SMC calculations.
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 24/01/2023
+# Last update: 07/02/2023
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 
@@ -14,14 +14,14 @@ if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
 fi
 
 FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
-LOG=$(grep -n "LOG    =" $1 | cut -c12-)
+LOG=$(grep "^LOG" $1 | cut -d "=" -f 2 | sed 's/ //g')
 NUC='nuc.inp'
-DAT=$(grep -n "DAT    =" $1 | cut -c13-)
+DAT=$(grep "^DAT" $1 | cut -d "=" -f 2 | sed 's/ //g')
 VNUC='VNUC.FILE'
 FOCK='FOCK.FILE'
 MOLECULE=$(grep -n " INPUT CARD>...molecule's name:" $FOLDER/$LOG | cut -c38-)  # Find molecule name in input
-GROUP=$(grep -n "THE POINT GROUP OF THE MOLECULE IS" $FOLDER/$LOG | cut -c41-)   # Find the Symmetry group of the molecule
-CSF=$(grep -n "CSF    =" $1 | cut -c13-)  # Find the CSF's construction type
+GROUP=$(grep -n "THE POINT GROUP OF THE MOLECULE IS" $FOLDER/$LOG | cut -c41- | sed 's/ //g')   # Find the Symmetry group of the molecule
+CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Find the CSF's construction type
 
 PATH_TO_SIM="$SMC/simetrias/simetrias_conf.x"
 PATH_TO_A="$SMC/a2018/a2018.x"
@@ -31,32 +31,37 @@ PATH_TO_EIGENVALUES="$SMC/read-eigenvalues/read_eigenvalues.x"
 
 ### Folder creation 
 
-if [ $GROUP == Cs ]; then
+if [ $GROUP == CS ]; then
 	SYM=()
 	SYM+=(ap)
 	SYM+=(app)
-	
-	for sym in ${SYM[@]}; do 
-		mkdir -p $FOLDER/$CSF/$sym
-	done
 
-elif [ $GROUP == C2v ]; then
+        for sym in ${SYM[@]}; do
+                mkdir -p $FOLDER/$CSF/$sym
+        done
+	
+        
+elif [ $GROUP == C2V ]; then
         SYM=()
         SYM+=(a1)
         SYM+=(b1)
         SYM+=(b2)
         SYM+=(a2)
 
-        for sym in $(${SYM}[@]); do
+        for sym in ${SYM[@]}; do
                 mkdir -p $FOLDER/$CSF/$sym
         done
 
 elif [ $GROUP == C1 ]; then
-		mkdir -p $FOLDER/$CSF/
 	
+        mkdir -p $FOLDER/$CSF/
+
 else
-	echo "This $POINT_GROUP is not in this script".
+
+	echo "This $GROUP is not in this script".
 	break
+    
+
 fi
 
 
@@ -199,7 +204,7 @@ done
 
 echo '' >> $FOLDER/simetria.inp
 
-if [ $GROUP == Cs ]; then
+if [ $GROUP == CS ]; then
 	echo "1" >> $FOLDER/simetria.inp
 	
         l3=$(grep -n "ORBITAL SYMMETRIES" eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
@@ -232,7 +237,7 @@ if [ $GROUP == Cs ]; then
 	
 	        echo '' >> $FOLDER/simetria_${sym}.inp
 	
-	                cp $FOLDER/simetria_${sym}.inp $FOLDER/simetria_${sym}-tmp.inp
+	        cp $FOLDER/simetria_${sym}.inp $FOLDER/simetria_${sym}_tmp.inp
 
                 ENERSYM=-1
 
@@ -242,10 +247,11 @@ if [ $GROUP == Cs ]; then
                 cat $FOLDER/eigenvalues >> $FOLDER/simetria_${sym}.inp
                 chmod +x $FOLDER/simetria_${sym}.inp
                 $FOLDER/simetria_${sym}.inp
-                mv $FOLDER/simetria_${sym}.lis $FOLDER/$CSF/ 2>/dev/null
 
                 options=("Yes" "Try a diferent energy")
-                POLAR=$( tail -n 1 $FOLDER/$CSF/simetria_${sym}.lis | sed 's/[^0-9]*//g' )
+                POLAR=$( tail -n 1 $FOLDER/simetria.lis | sed 's/[^0-9]*//g' )
+                mv $FOLDER/simetria.lis $FOLDER/$CSF/${sym} 2>/dev/null
+
                 echo "
                 For this $sym, the energy of $ENERSYM Hartree generates $POLAR configurations. Is it good for you?
                 "
@@ -273,9 +279,9 @@ if [ $GROUP == Cs ]; then
                                         cat $FOLDER/eigenvalues >> $FOLDER/simetria_${sym}.inp
                                         chmod +x $FOLDER/simetria_${sym}.inp
                                         $FOLDER/simetria_${sym}.inp
+                                        POLAR=$( tail -n 1 $FOLDER/simetria.lis | sed 's/[^0-9]*//g' )
                                         mv $FOLDER/simetria.lis $FOLDER/$CSF/${sym} 2>/dev/null
 
-                                        POLAR=$( tail -n 1 $FOLDER/$CSF/simetria_${sym}.lis | sed 's/[^0-9]*//g' )
                                         echo "
                                 The energy of $ENERSYM Hartree generates $POLAR configurations for $sym representation. Is it good for you?
                                         "
@@ -292,7 +298,7 @@ if [ $GROUP == Cs ]; then
 	done
 	
 
-elif [ $GROUP == C2v ]; then
+elif [ $GROUP == C2V ]; then
 	echo "2" >> $FOLDER/simetria.inp
 
 	l3=$(grep -n "ORBITAL SYMMETRIES" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
@@ -335,7 +341,7 @@ elif [ $GROUP == C2v ]; then
 
                 echo '' >> $FOLDER/simetria_${sym}.inp
 
-                cp $FOLDER/simetria_${sym}.inp $FOLDER/simetria_${sym}-tmp.inp
+                cp $FOLDER/simetria_${sym}.inp $FOLDER/simetria_${sym}_tmp.inp
 
                 ENERSYM=-1
 
@@ -345,10 +351,11 @@ elif [ $GROUP == C2v ]; then
                 cat $FOLDER/eigenvalues >> $FOLDER/simetria_${sym}.inp
                 chmod +x $FOLDER/simetria_${sym}.inp
                 $FOLDER/simetria_${sym}.inp
-                mv $FOLDER/simetria_${sym}.lis $FOLDER/$CSF/ 2>/dev/null
 
                 options=("Yes" "Try a diferent energy")
-                POLAR=$( tail -n 1 $FOLDER/$CSF/simetria_${sym}.lis | sed 's/[^0-9]*//g' )
+                POLAR=$( tail -n 1 $FOLDER/simetria.lis | sed 's/[^0-9]*//g' )
+                mv $FOLDER/simetria.lis $FOLDER/$CSF/${sym} 2>/dev/null
+
                 echo "
                 For this $sym, the energy of $ENERSYM Hartree generates $POLAR configurations. Is it good for you?
                 "
@@ -376,9 +383,10 @@ elif [ $GROUP == C2v ]; then
                                         cat $FOLDER/eigenvalues >> $FOLDER/simetria_${sym}.inp
                                         chmod +x $FOLDER/simetria_${sym}.inp
                                         $FOLDER/simetria_${sym}.inp
+                                        
+                                        POLAR=$( tail -n 1 $FOLDER/simetria.lis | sed 's/[^0-9]*//g' )
                                         mv $FOLDER/simetria.lis $FOLDER/$CSF/${sym} 2>/dev/null
 
-                                        POLAR=$( tail -n 1 $FOLDER/$CSF/simetria_${sym}.lis | sed 's/[^0-9]*//g' )
                                         echo "
                                 The energy of $ENERSYM Hartree generates $POLAR configurations for $sym representation. Is it good for you?
                                         "
@@ -430,10 +438,11 @@ elif [ $GROUP == C1 ]; then
         cat $FOLDER/eigenvalues >> $FOLDER/simetria.inp
         chmod +x $FOLDER/simetria.inp
         $FOLDER/simetria.inp
-        mv $FOLDER/simetria.lis $FOLDER/$CSF/ 2>/dev/null
 
         options=("Yes" "Try a diferent energy")
-        POLAR=$( tail -n 1 $FOLDER/$CSF/simetria.lis | sed 's/[^0-9]*//g' )
+        POLAR=$( tail -n 1 $FOLDER/simetria.lis | sed 's/[^0-9]*//g' )
+        mv $FOLDER/simetria.lis $FOLDER/$CSF/ 2>/dev/null
+
         echo "
         The energy of $ENERSYM Hartree generates $POLAR configurations. Is it good for you?
         "
@@ -461,9 +470,10 @@ elif [ $GROUP == C1 ]; then
                                 cat $FOLDER/eigenvalues >> $FOLDER/simetria.inp
                                 chmod +x $FOLDER/simetria.inp
                                 $FOLDER/simetria.inp
+                                
+                                POLAR=$( tail -n 1 $FOLDER/simetria.lis | sed 's/[^0-9]*//g' )
                                 mv $FOLDER/simetria.lis $FOLDER/$CSF/ 2>/dev/null
 
-                                POLAR=$( tail -n 1 $FOLDER/$CSF/simetria.lis | sed 's/[^0-9]*//g' )
                                 echo "
                                 The energy of $ENERSYM Hartree generates $POLAR configurations. Is it good for you?
                                 "
@@ -498,13 +508,13 @@ if [ $GROUP == "C1" ]; then
 	cp $FOLDER/{$VNUC,$FOCK} $FOLDER/$CSF/
 
 	if [ $CSF == SEP ]; then
-                LINE1=$(grep -n "MOB-SCI" $FOLDER/$CSF/$sym/simetria.lis | sed 's/[^0-9.]*//g')
-                NUMBER=$(sed -n "$(($LINE1+1)) p" $FOLDER/$CSF/$sym/simetria.lis)
-                CSF_SEP=$( sed -n "$(($LINE1+1)) p" $FOLDER/$CSF/$sym/simetria.lis | cut -c5-)
+                LINE1=$(grep -n "MOB-SCI" $FOLDER/$CSF/simetria.lis | sed 's/[^0-9.]*//g')
+                NUMBER=$(sed -n "$(($LINE1+1)) p" $FOLDER/$CSF/simetria.lis)
+                CSF_SEP=$( sed -n "$(($LINE1+1)) p" $FOLDER/$CSF/simetria.lis | cut -c5-)
                 CSF_SE="${NUMBER:0:4}"
 
-                LINE2=$(wc -l $FOLDER/$CSF/$sym/simetria.lis | awk '{print $1}')
-                sed -n "$(($LINE1+2)),$(($LINE2-2)) p" $FOLDER/$CSF/$sym/simetria.lis > $FOLDER/$CSF/$sym/tmp
+                LINE2=$(wc -l $FOLDER/$CSF/simetria.lis | awk '{print $1}')
+                sed -n "$(($LINE1+2)),$(($LINE2-2)) p" $FOLDER/$CSF/simetria.lis > $FOLDER/$CSF/tmp
         else
                 for i in $(seq $(($NUMBER_OF_OCC_ORBITALS+1)) $NUMBER_OF_ORBITALS); do echo $i >> $FOLDER/$CSF/tmp; done
 		CSF_SE=$(wc -l < $FOLDER/$CSF/tmp)
@@ -528,7 +538,8 @@ $((${NUMBER_OF_OCC_ORBITALS}*2))  $NUMBER_OF_OCC_ORBITALS  $CSF_SE  $CSF_SEP  1 
 1  0  0" >> $FOLDER/$CSF/a
 
         cat $FOLDER/$CSF/tmp >> $FOLDER/$CSF/a
-
+        rm $FOLDER/$CSF/tmp
+        
         echo "%END_WAVEFUN_BLOCK
 
 
@@ -554,26 +565,26 @@ else
 
 	        cp $FOLDER/{$VNUC,$FOCK,eigenvec-sim} $FOLDER/$CSF/$sym/
 
-	        if [ $APPROX == SEP ]; then
+	        if [ $CSF == SEP ]; then
 		        LINE1=$(grep -n "MOB-SCI" $FOLDER/$CSF/$sym/simetria.lis | sed 's/[^0-9.]*//g')
-		        NUMBER=$(sed -n "$(($LINE1+1)) p" $FOLDER/parteA/$CSF/$sym/simetria.lis)
+		        NUMBER=$(sed -n "$(($LINE1+1)) p" $FOLDER/$CSF/$sym/simetria.lis)
 		        CSF_SEP=$( sed -n "$(($LINE1+1)) p" $FOLDER/$CSF/$sym/simetria.lis | cut -c5-)
 		        CSF_SE="${NUMBER:0:4}" 
 
 		        LINE2=$(wc -l $FOLDER/$CSF/$sym/simetria.lis | awk '{print $1}')
-		        sed -n "$(($LINE1+2)),$(($LINE2-2)) p" $FOLDER/$CSF/$sym/simetria.lis > $FOLDER/CSF/$sym/tmp
+		        sed -n "$(($LINE1+2)),$(($LINE2-2)) p" $FOLDER/$CSF/$sym/simetria.lis > $FOLDER/$CSF/$sym/tmp
 	        else
 		        CONT=$(($CONT+1))
-		        LINE1=$(grep -n "BLOCK $CONT" $FOLDER/$CSF/eigenvec-sim | awk '{print $1}' | tr -d :)
+		        LINE1=$(grep -n "BLOCK $CONT" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :)
 		
 			if [ $CONT == ${#SYM[@]} ]; then
-				LINE2=$(wc -l $FOLDER/$CSF/eigenvec-sim |  awk '{print $1}')
+				LINE2=$(wc -l $FOLDER/eigenvec-sim |  awk '{print $1}')
 			else
-				TMP2=$(grep -n "BLOCK $(($CONT+1))" $FOLDER/$CSF/eigenvec-sim | awk '{print $1}' | tr -d :)
+				TMP2=$(grep -n "BLOCK $(($CONT+1))" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :)
 				LINE2=$(($TMP2-2))
 			fi
 
-		        sed -n "$(($LINE1+1)),$LINE2 p" $FOLDER/$CSF/eigenvec-sim > $FOLDER/$CSF/tmp
+		        sed -n "$(($LINE1+1)),$LINE2 p" $FOLDER/eigenvec-sim > $FOLDER/$CSF/tmp
 		        tr -s ' '  '\n'< $FOLDER/$CSF/tmp > $FOLDER/$CSF/out
 		        sed -i '1d' $FOLDER/$CSF/out
 		        awk -v tmp=$NUMBER_OF_OCC_ORBITALS '(NR>=1) && ($1 > tmp ) ' $FOLDER/$CSF/out > $FOLDER/$CSF/block
@@ -588,7 +599,7 @@ else
 
 "'$EXECA << final > '"${sym}-a.dat 
                 
-"> $FOLDER/$CSF/${sym}-a
+" > $FOLDER/$CSF/$sym/${sym}-a
 
         cat $FOLDER/parteA_tmp >> $FOLDER/$CSF/$sym/${sym}-a
 
@@ -596,9 +607,11 @@ else
 
 %INI_WAVEFUN_BLOCK
 $((${NUMBER_OF_OCC_ORBITALS}*2))  $NUMBER_OF_OCC_ORBITALS  $CSF_SE  $CSF_SEP  1  7  0  0
-1  0  0" > $FOLDER/$CSF/$sym/${sym}-a
+1  0  0" >> $FOLDER/$CSF/$sym/${sym}-a
 
 	cat $FOLDER/$CSF/$sym/tmp >> $FOLDER/$CSF/$sym/${sym}-a
+        rm $FOLDER/$CSF/$sym/tmp
+        rm $FOLDER/$CSF/$sym/eigenvec-sim
 
 	echo "%END_WAVEFUN_BLOCK
 
@@ -626,7 +639,7 @@ fi
 
 ### Clear some files and save the simmetry group and name of the molecule in eigenvec-sim for parteB
 
-rm $FOLDER/*tmp* $FOLDER/*eigenvalues $FOLDER/simetria.inp $FOLDER/$CSF/*tmp* $FOLDER/$CSF/$NUC 2>/dev/null
+rm $FOLDER/*tmp* $FOLDER/*eigenvalues $FOLDER/simetria* $FOLDER/$CSF/block $FOLDER/$CSF/tmp $FOLDER/$CSF/out $FOLDER/$CSF/$NUC 2>/dev/null
 
 if [ ! -e $FOLDER/eigenvec-sim ]; then
 

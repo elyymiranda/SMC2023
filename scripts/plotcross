@@ -34,7 +34,7 @@ if [ $GROUP == Cs ]; then
 
     for sym in ${SYM[@]}; do
                 
-        ARRAY_LIS=($(ls -1 $FOLDER/$CSF/$sym/*.lis | awk -F/ '{print $NF}'))
+        ARRAY_LIS=($(ls -1 $FOLDER/$CSF/$sym/*.log | awk -F/ '{print $NF}'))
 
         rm $FOLDER/$CSF/$sym/*.dat 2> /dev/null
 
@@ -97,7 +97,7 @@ elif [ $GROUP == C2v ]; then
 
     for sym in ${SYM[@]}; do
                 
-        ARRAY_LIS=($(ls -1 $FOLDER/$CSF/$sym/*.lis | awk -F/ '{print $NF}'))
+        ARRAY_LIS=($(ls -1 $FOLDER/$CSF/$sym/*.log | awk -F/ '{print $NF}'))
 
         rm $FOLDER/$CSF/$sym/*.dat 2> /dev/null
 
@@ -154,7 +154,7 @@ elif [ $GROUP == C2v ]; then
 
 elif [ $GROUP == C1 ]; then
                               
-    ARRAY_LIS=($(ls $FOLDER/$CSF/*.lis | awk -F/ '{print $NF}'))
+    ARRAY_LIS=($(ls $FOLDER/$CSF/*.log | awk -F/ '{print $NF}'))
 
     rm $FOLDER/$CSF/*.dat 2> /dev/null
 

@@ -4,9 +4,6 @@
 
 # DO NOT LEAVE ANY FREE SPACE AFTER THE ARGUMENT. REMEMBER TO LEAVE THE SPACES BETWEEN
 
-# Path to parteB
-PATH_TO_B="$SMC/b2018/teste/1/b2018.x"
-
 # CSF's construction type
 CSF    = SE
 

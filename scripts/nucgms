@@ -2,7 +2,7 @@
 
 # This script create all the structure for the GAMES-SMC calculations.
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 23/01/2023
+# Last update: 07/02/2023
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 ### Input important informations
@@ -13,16 +13,16 @@ if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
 fi
 	
 PATH_TO_SMC="$SMC/nuc/NucAtracPP.x"  # Track NucAtracPP in SMC folder
-FOLDER=$(readlink -f $1)  # Track the job folder
+FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
 cp $SMC/nuc/PPandBASIS.txt $FOLDER
 
-MOLECULE=$(grep -n "MNAME  =" $1 | cut -c13-)  # Find molecule name in input
-GROUP=$(grep -n "GROUP  =" $1 | cut -c13-)  # Find molecule point group symmetry in input
-MVO=$(grep -n "MVO    =" $1 | cut -c13-)  # Find molecule required MV0'S (could be more than just one) in input
-EXTRAC=$(grep -n "EXTRAC =" $1 | cut -c13-)  # Find any required extra center in input
-RPPLANE=$(grep -n "RPLANE =" $1 | cut -c13-)  # Find molecule symmetry plane in input
+MOLECULE=$(grep "^MNAME" $1 | cut -d "=" -f 2 | sed 's/ //g') # Find molecule name in input
+GROUP=$(grep "^GROUP" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Find molecule point group symmetry in input
+MVO=$(grep "^MVO" $1 | cut -d "=" -f 2)  # Find molecule required MV0'S (could be more than just one) in input
+EXTRAC=$(grep "^EXTRAC" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Find any required extra center in input
+RPPLANE=$(grep "^RPLANE" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Find molecule symmetry plane in input
 
-GMODE=$(grep -n "GMODE  =" $1 | cut -c13-)  # Geometry in angstron or bohr
+GMODE=$(grep "^GMODE" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Geometry in angstron or bohr
 ILINE=$(grep -n " BEGIN_GEO" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
 FLINE=$(grep -n " END_GEO" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
 sed -n "$((${ILINE}+1)),$((${FLINE}-1)) p" $1 > $FOLDER/geo  # Save the states info
@@ -88,13 +88,12 @@ for i in $MVO; do
         sed -i "3 i \ \$SCF DIRSCF=.TRUE. MVOQ=$i \$END" $FOLDER/gmssmc.inp
         cp $FOLDER/gmssmc.inp $FOLDER/res-bhs${i}.inp
         cp $FOLDER/VNUC.FILE /tmp/res-bhs${i}.F77
-        $SMC/nuc/rungms $FOLDER/res-bhs${i}.inp 00 1>& $FOLDER/res-bhs${i}.log
+        $SMC/nuc/rungms res-bhs${i}.inp 00 1>& res-bhs${i}.log
         mv /tmp/res-bhs${i}.dat $FOLDER/res-bhs${i}.dat
         mv /tmp/res-bhs${i}.OCK $FOLDER/FOCK.FILE
         mv /tmp/res-bhs* $FOLDER/  2>/dev/null
         echo 'End of this process'
 done
 
-rm $FOLDER/*.F77 $FOLDER/*.F05 $FOLDER/infbasic-nucgms $FOLDER/nuc.inp $FOLDER/geo $FOLDER/PPandBASIS.txt $FOLDER/gmssmc.inp 2>/dev/null
+rm $FOLDER/*.F77 $FOLDER/*.F05 $FOLDER/geo $FOLDER/PPandBASIS.txt 2>/dev/null
 
-echo "All nucgms process are completed!"
