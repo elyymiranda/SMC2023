@@ -25,8 +25,8 @@ CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Find the CSF's constru
 
 PATH_TO_SIM="$SMC/simetrias/simetrias_conf.x"
 PATH_TO_A="$SMC/a2018/a2018.x"
-PATH_TO_IREAD="$SMC/iread/ReadGamess_$GROUP.x"
-PATH_TO_EIGENVALUES="$SMC/read-eigenvalues/read_eigenvalues.x"
+PATH_TO_IREAD="$SMC/read_gamess/ReadGamess-$GROUP.x"
+PATH_TO_EIGENVALUES="$SMC/read_eigenvalues/read_eigenvalues.x"
 
 
 ### Folder creation 

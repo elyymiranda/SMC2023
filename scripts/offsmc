@@ -22,7 +22,7 @@ EIGENVEC='eigenvec-sim'
 NKPTS_OFF_FROM=$(grep "^END_POINT" $1 | cut -d "=" -f 2)
 NKPTS_OFF_TO=$(grep "^INT_POINT" $1 | cut -d "=" -f 2)
 
-PATH_TO_B="$SMC/b2018/teste/1/b2018.x"
+PATH_TO_B="$SMC/b2018/b2018.x"
 
 
 ### Folder creation 

@@ -23,7 +23,7 @@ INT_3DK=$(grep "^INT_POINT" $1 | cut -d "=" -f 2 | sed 's/ //g')
 END_3DK=$(grep "^END_POINT" $1 | cut -d "=" -f 2 | sed 's/ //g')
 STEP=$(grep "^STEP" $1 | cut -d "=" -f 2 | sed 's/ //g')
 
-PATH_TO_B="$SMC/b2018/teste/1/b2018.x"
+PATH_TO_B="$SMC/b2018/b2018.x"
 
 
 ### Folder creation 

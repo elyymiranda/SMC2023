@@ -88,7 +88,7 @@ for i in $MVO; do
         sed -i "3 i \ \$SCF DIRSCF=.TRUE. MVOQ=$i \$END" $FOLDER/gmssmc.inp
         cp $FOLDER/gmssmc.inp $FOLDER/res-bhs${i}.inp
         cp $FOLDER/VNUC.FILE /tmp/res-bhs${i}.F77
-        $SMC/nuc/rungms res-bhs${i}.inp 00 1>& res-bhs${i}.log
+        $SMC/gamess-smc/rungms res-bhs${i}.inp 00 1>& res-bhs${i}.log
         mv /tmp/res-bhs${i}.dat $FOLDER/res-bhs${i}.dat
         mv /tmp/res-bhs${i}.OCK $FOLDER/FOCK.FILE
         mv /tmp/res-bhs* $FOLDER/  2>/dev/null

@@ -1,0 +1,152 @@
+#!/bin/bash
+
+# This script installs SMC code.
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 10/02/2023
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+
+### Input information
+
+FOLDER=$(dirname $(readlink -f installsmc))  # The folder that the script runs
+
+BIB1=/opt/intel/oneapi/mkl/2023.0.0/include/intel64/lp64/
+BIB2=/opt/intel/oneapi/mkl/2023.0.0/lib/intel64/
+
+### Decompression of files
+
+tar -vxf SMC2023_v6.tar 2>/dev/null
+
+tar -vxf a2018_v5.tar 2>/dev/null
+rm a2018_v5.tar
+
+tar -vxf b2018_v5.tar 2>/dev/null
+rm b2018_v5.tar
+
+tar -vxf gamess.tar.gz 2>/dev/null
+rm gamess.tar.gz  
+
+tar -vxf memory_use.tar 2>/dev/null
+rm memory_use.tar
+
+tar -vxf nuc.tar 2>/dev/null
+rm nuc.tar
+
+tar -vxf read_eigenvalues.tar 2>/dev/null
+rm read_eigenvalues.tar
+
+tar -vxf read_gamess.tar 2>/dev/null
+rm read_gamess.tar
+
+tar -vxf simetrias.tar 2>/dev/null
+rm simetrias.tar
+
+tar -vxf scriptssmc.tar 2>/dev/null 
+rm scriptssmc.tar
+
+tar -vxf hcomp_v2.tar 2>/dev/null
+rm hcomp_v2.tar
+
+
+### Running each code
+
+echo " Running parteA (SMC) code "
+cd $FOLDER/a2018
+chmod +x comp-mkl-gauss-a
+./comp-mkl-gauss-a 
+echo "
+
+"
+
+echo " Running parteB (SMC) code "
+cd $FOLDER/b2018
+chmod +x comp-mkl
+./comp-mkl
+echo "
+
+"
+
+echo " Running GamessSMC code "
+cd $FOLDER/gamess-smc
+rm -f gamess.00.x 2>/dev/null
+sed -i "s|chdir /home/barita/maplima/elianemo/gamess-smc|chdir $FOLDER/gamess-smc|g" compall
+sed -i "s|chdir /home/barita/maplima/elianemo/gamess-smc|chdir $FOLDER/gamess-smc|g" comp-smc
+sed -i "s|chdir /home/barita/maplima/elianemo/gamess-smc|chdir $FOLDER/gamess-smc|g" lked
+sed -i "s|chdir /home/barita/maplima/elianemo/gamess-smc|chdir $FOLDER/gamess-smc|g" comp
+sed -i "s|chdir /home/barita/maplima/elianemo/gamess-smc|chdir $FOLDER/gamess-smc|g" runall
+./compall 2>/dev/null
+./comp-smc 2>/dev/null
+./lked 2>/dev/null
+echo "
+
+"
+
+echo " Running hcomp code "
+cd $FOLDER/hcomp
+LAPACK=mkl_lapack95_lp64
+BLAS=mkl_blas95_lp64
+ifort -qopenmp -O2 -mp1 -ftz -c hcomp_v2.f
+ifort -qopenmp -O2 -mp1 -ftz -o hcomp_v2.x hcomp_v2.o -L$BIB2 -I$BIB1 -lmkl_intel_lp64 -l$BLAS -l$LAPACK -qmkl -lmkl_intel_thread -qopenmp -lm
+
+echo "
+
+"
+
+echo " Running MemoryUse code "
+cd $FOLDER/memory_use
+ifort memory_use.f -o memory_use.x
+echo "
+
+"
+
+echo " Running Nuc code "
+cd $FOLDER/nuc
+ifort -fast -align -ftz -O2 -mp1 -static -o NucAtracPP.x NucAtracPP.f ampoly49.f pseudo-1_new.f
+ifort montarnucgms-alt5.f90 -o montarnucgms-alt5.x
+echo "
+
+"
+
+echo " Running ReadGamess code "
+cd $FOLDER/read_gamess
+SCRIPTS=($(ls -1 *.f | awk -F/ '{print $NF}'))
+for script in ${SCRIPTS[@]}; do
+    output=${script::-2}
+    ifort $script -o ${output}.x
+done
+echo "
+
+"
+
+echo " Running ReadEigenvalues code "
+cd $FOLDER/read_eigenvalues
+ifort read_eigenvalues.f -o read_eigenvalues.x
+echo "
+
+"
+
+echo " Running Simetrias code "
+cd $FOLDER/simetrias
+ifort -O2 -traceback -align -c simetrias.f
+ifort -O2 -traceback -align -o simetrias.x simetrias.o
+echo "
+
+"
+
+echo " Compilation done! You should now run the benchmark. "
+
+
+### Making scripts executable
+
+chmod +x 3dksmc
+chmod +x nucgms
+chmod +x offsmc
+chmod +x onksmc
+chmod +x parteA
+chmod +x parteB 
+chmod +x plotcross
+chmod +x plotped
+chmod +x pseudospec
+chmod +x runparteA
+
+

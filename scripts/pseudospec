@@ -21,7 +21,7 @@ MAX_ENERG=$(grep "^MAX_ENERG" $1 | cut -d "=" -f 2 | sed 's/ //g')
 THRESHOLD=$(grep "^THRESHOLD" $1 | cut -d "=" -f 2 | sed 's/ //g')
 CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')
 
-PATH_TO_HCOMP="$SMC/hcomp_v2/hcomp_v2.x"
+PATH_TO_HCOMP="$SMC/hcomp/hcomp_v2.x"
 
 
 ### Point group hcomp input production and running
