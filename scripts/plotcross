@@ -2,7 +2,7 @@
 
 # This script organize the cross-section data upon energy for future plot (table view).
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 06/02/2023
+# Last update: 15/02/2023
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 ### Input information
@@ -27,7 +27,7 @@ fi
 
 ### Search for files in folder and create arrays.
 
-if [ $GROUP == Cs ]; then
+if [ $GROUP == CS ]; then
     SYM=()
     SYM+=(ap)
     SYM+=(app)
@@ -88,7 +88,7 @@ if [ $GROUP == Cs ]; then
 
     done
 
-elif [ $GROUP == C2v ]; then
+elif [ $GROUP == C2V ]; then
     SYM=()
     SYM+=(a1)
     SYM+=(b1)

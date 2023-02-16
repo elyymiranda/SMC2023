@@ -61,7 +61,7 @@ fi
 
 echo "#!/bin/csh
 
-set EXECB = $PATH_TO_B
+set EXEC = $PATH_TO_B
 " > $FOLDER/$CSF/3dk
 
 ARRAY_3DK=()
@@ -86,9 +86,9 @@ if [ $POINTS_3DK -lt 15 ]; then
         done
 
         if [ $VALUE == $END_3DK ]; then
-                echo "foreach ener(${ARRAY_3DK[@]})" >> $FOLDER/$CSF/3dk
+                echo "set ener = (${ARRAY_3DK[@]})" >> $FOLDER/$CSF/3dk
         else    
-                echo "foreach ener(${ARRAY_3DK[@]} $END_3DK)" >> $FOLDER/$CSF/3dk
+                echo "set ener = (${ARRAY_3DK[@]} $END_3DK)" >> $FOLDER/$CSF/3dk
         fi
 
 else
@@ -106,7 +106,7 @@ else
                 ARRAY_3DK+=($VALUE)
 
                 if (( $i == 15 )); then
-                        echo 'foreach ener('"${ARRAY_3DK[@]}"' \' >> $FOLDER/$CSF/3dk
+                        echo 'set ener = ('"${ARRAY_3DK[@]}"' \' >> $FOLDER/$CSF/3dk
                         ARRAY_3DK=()
 
                 elif (( $i == $POINTS_3DK )); then
