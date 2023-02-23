@@ -5,6 +5,7 @@ import brewer2mpl
 
 # Get a list of all .dat files in the current directory
 files = [f for f in os.listdir('.') if os.path.isfile(f) and f.endswith('.dat')]
+files.sort()
 
 # Define a color cycle for the plot
 bmap = brewer2mpl.get_map('Set1', 'qualitative', 4)

@@ -2,7 +2,7 @@
 
 # This script organizes the .log information from EIGENVEC.LIS.
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 03/02/2023
+# Last update: 23/02/2023
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 ### Input important informations
@@ -26,131 +26,103 @@ PATH_TO_HCOMP="$SMC/hcomp/hcomp_v2.x"
 
 ### Point group hcomp input production and running
 
-if [ $GROUP == Cs ]; then
+if [ $GROUP == CS ]; then
     SYM=()
     SYM+=(ap)
     SYM+=(app)
 
-    for sym in ${ARRAY_SYM[@]}; do
+    l1=$(grep -n "BLOCK 1" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(grep -n "BLOCK 2" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2}-1)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/ap/list
+    rm $FOLDER/tmp_list
 
-		# Obtain the energy information for parte A input
+    l1=$(grep -n "BLOCK 2" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(wc -l $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2})) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/app/list
+    rm $FOLDER/tmp_list
 
-		FINAL_LINE=$(wc -l < $FOLDER/$CSF/$sym/${sym}-a)
-		ETARGT=$(awk -v VALUE=$(($FINAL_LINE-2)) 'FNR==VALUE' ${sym}$FOLDER/$CSF/$sym/${sym}-a)
 
-		# Number of orbitals utilized in parteA
-
-		LINHA=$(grep -n "INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/${sym}-a | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
-		NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/${sym}-a | awk '{ print $3 }')
-
-        # hcomp input production and run 
-
-		echo '#!/bin/csh
-
-set EXEC ='" $PATH_TO_HCOMP"'
-
-$EXEC << fim > hcomp.dat
-NCONFS = '"$NCONFS"  > $FOLDER/$CSF/$sym/hcomp
-
-        ILINE=$(grep -n "SQUARE" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
-        FLINE=$(grep -n "EUPPER" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
-        sed -n "$ILINE p" $1 >> $FOLDER/$CSF/$sym/hcomp  
-        echo "ETARGT = $ETARGT" >> $FOLDER/$CSF/$sym/hcomp
-        sed -n "$(($ILINE + 1)),$FLINE p" $1 >> $FOLDER/$CSF/$sym/hcomp
-        echo 'fim' >> $FOLDER/$CSF/$sym/hcomp
-
-        # Running hcomp
-
-        chmod +x $FOLDER/$CSF/$sym/hcomp
-        cd $FOLDER/$CSF/$sym/
-        ./hcomp
-
-        # Find the symmetry of each state
-
-        l1=$(grep -n "BLOCK 1" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
-        l2=$(grep -n "BLOCK 2" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
-        sed -n "$((${l1}+1)),$((${l2}-1)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
-        tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/$sym/list
-        rm $FOLDER/tmp_list
-
-        # Begin the analysis from EIGENVEC.SIM
+    for sym in ${SYM[@]}; do
 
         l1=$(grep -n "%INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
         NUMBER_OF_OCC_ORBITALS=$(sed -n "$((${l1}+1)) p" $FOLDER/$CSF/$sym/$sym-a | awk '{print $2}' | sed 's/[^0-9]*//g')
 
-        awk  -v NUMOCC="$NUMBER_OF_OCC_ORBITALS" '$1 > NUMOCC { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
+        awk -v NUMOCC="$NUMBER_OF_OCC_ORBITALS" '$1 > NUMOCC { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
 
-        grep -n 'EIGENVALUE' $FOLDER/$CSF/$sym/EIGENVEC.LIS |  cut -d "=" -f2 | tr -d : | awk '{printf "%.2f\n",$1}' > $FOLDER/$CSF/$sym/tmp   # Find the number of pseudostates and the line of occurence
+        grep -n 'EIGENVALUE' $FOLDER/$CSF/$sym/EIGENVEC.LIS |  cut -d "=" -f2 | tr -d : | awk '{printf "%.2f\n",$1}' > $FOLDER/tmp   # Find the number of pseudostates and the line of occurence
         LINES_STATE=$(grep -n 'EIGENVALUE' $FOLDER/$CSF/$sym/EIGENVEC.LIS | awk '{print $1}' | tr -d : | awk 'p{print $0-p}{p=$0}' | head -n 1)    # Find the number of lines between two states
 
-        NUMBER_STATES=$(wc -l $FOLDER/$CSF/$sym/tmp | awk '{ print $1 }')
+        NUMBER_STATES=$(wc -l $FOLDER/tmp | awk '{ print $1 }')
+
+        TOTAL_MVO=$(grep "TOTAL NUMBER OF MOS IN VARIATION SPACE" $GAMES_LOG | cut -d "=" -f 2 | sed 's/ //g')
+        awk -v TOT="$TOTAL_MVO" '$1 <= TOT { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
 
         NUMBER_OF_ORBITALS=$(wc -l $FOLDER/$CSF/$sym/list | awk '{ print $1 }')
         IMPLINES=$( echo "$NUMBER_OF_ORBITALS/8" | bc)
 
+
         echo "The threshold is $THRESHOLD" > $FOLDER/$CSF/$sym/pseudo.info
 
         for states in $(seq 1  ${NUMBER_STATES}); do
-            ENERGY=$( awk -v STATE=$states 'NR==STATE{ print; exit }' $FOLDER/$CSF/$sym/tmp)
-
-            if (( $( bc <<<"$ENERGY >= $MIN_ENERG && $ENERGY <= $MAX_ENERG") )); then
-                cont=0
-                echo "
+                ENERGY=$( awk -v STATE=$states 'NR==STATE{ print; exit }' tmp)
+                if (( $( bc <<<"$ENERGY >= $MIN_ENERG && $ENERGY <= $MAX_ENERG") )); then
+                    cont=0
+                    echo "
 Pseudo state number $states
 Energy = $ENERGY eV
 CSF  Coeff. Corresp. Orb." >> $FOLDER/$CSF/$sym/pseudo.info
+                    for linha in $(seq 1 $IMPLINES); do
+                        for coluna in $(seq 1 8); do
+                            LINE=$(($LINES_STATE*$states-$LINES_STATE+1+$linha))
+                            COEF=$(awk -v lin=$LINE -v col=$coluna 'NR==lin{ print $col; exit }' $FOLDER/$CSF/$sym/EIGENVEC.LIS || echo 0)
+                            if (( $( bc <<<"${COEF#-} >= $THRESHOLD") )); then
 
-                for linha in $(seq 1 $(($IMPLINES-2))); do
+                                csf=$((8*$linha + $coluna - 8))
+                                CORORB=$(sed -n "$csf p" $FOLDER/$CSF/$sym/list)
+                                awk "BEGIN { 
+                                lin=$linha; col=$coluna; coef=$COEF; OCC_ORB=$CORORB
+                                CSF=8*lin + col - 8
+                                COR_ORB=OCC_ORB
+                                printf \"%.f    %.2f   %.1f\\n\", CSF, coef, COR_ORB
+                                }" >> $FOLDER/$CSF/$sym/pseudo.info
+                                cont=1
+                            fi
 
-                    for coluna in $(seq 1 8); do
-                        LINE=$(($LINES_STATE*$states-$LINES_STATE+1+$linha))
-                        COEF=$(awk -v lin=$LINE -v col=$coluna 'NR==lin{ print $col; exit }' $FOLDER/$CSF/$sym/EIGENVEC.LIS)
-
-                        if (( $( bc <<<"${COEF#-} >= $THRESHOLD") )); then
-                            CSF=$((8*$linha + $coluna - 8))
-                            CORORB=$(sed -n "$CSF p" list)
-                            awk "BEGIN { 
-                            lin=$linha; col=$coluna; coef=$COEF; OCC_ORB=$CORORB
-                            CSF=8*lin + col - 8
-                            COR_ORB=OCC_ORB
-                            printf \"%.f    %.2f   %.f\\n\", CSF, coef, COR_ORB
-                            }" >> $FOLDER/$CSF/$sym/pseudo.info
-                            cont=1
-                        fi
+                        done
 
                     done
 
-                done
+                    if (( $cont == 0 )); then
+                        head -n -4 $FOLDER/$CSF/$sym/pseudo.info > tmp.txt && mv tmp.txt $FOLDER/$CSF/$sym/pseudo.info
+                    fi
 
-                if (( $cont == 0 )); then
-                    head -n -4 $FOLDER/$CSF/$sym/pseudo.info > $FOLDER/$CSF/$sym/tmp.txt && mv $FOLDER/$CSF/$sym/tmp.txt $FOLDER/$CSF/$sym/pseudo.info
                 fi
 
-            fi
-               
         done
 
     done
     
     
-elif [ $GROUP == C2v ]; then
+elif [ $GROUP == C2V ]; then
     SYM=()
     SYM+=(a1)
     SYM+=(b1)
     SYM+=(b2)
     SYM+=(a2)
 
-    for sym in ${ARRAY_SYM[@]}; do
+    for sym in ${SYM[@]}; do
 
 		# Obtain the energy information for parte A input
 
-		FINAL_LINE=$(wc -l < $FOLDER/$CSF/$sym/${sym}-a)
-		ETARGT=$(awk -v VALUE=$(($FINAL_LINE-2)) 'FNR==VALUE' ${sym}$FOLDER/$CSF/$sym/${sym}-a)
+		FINAL_LINE=$(wc -l < $FOLDER/$CSF/$sym/$sym-a)
+		ETARGT=$(awk -v VALUE=$(($FINAL_LINE-2)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a)
 
 		# Number of orbitals utilized in parteA
 
-		LINHA=$(grep -n "INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/${sym}-a | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
-		NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/${sym}-a | awk '{ print $3 }')
+		LINHA=$(grep -n "INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
+		NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a | awk '{ print $3 }')
 
         # hcomp input production and run 
 
@@ -181,7 +153,7 @@ elif [ $GROUP == C1 ]; then
 	# Obtain the energy information for parte A input
 
 	FINAL_LINE=$(wc -l < $FOLDER/$CSF/a)
-	ETARGT=$(awk -v VALUE=$(($FINAL_LINE-2)) 'FNR==VALUE' ${sym}$FOLDER/$CSF/a)
+	ETARGT=$(awk -v VALUE=$(($FINAL_LINE-2)) 'FNR==VALUE' $FOLDER/$CSF/a)
 
 	# Number of orbitals utilized in parteA
 
@@ -234,11 +206,11 @@ Pseudo state number $states
 Energy = $ENERGY eV
 CSF  Coeff. Corresp. Orb." >> $FOLDER/$CSF/pseudo.info
 
-            for linha in $(seq 1 $(($IMPLINES-24))); do
+            for linha in $(seq 1 $IMPLINES); do
 
                 for coluna in $(seq 1 8); do
                     LINE=$(($LINES_STATE*$states-$LINES_STATE+1+$linha))
-                    COEF=$(awk -v lin=$LINE -v col=$coluna 'NR==lin{ print $col; exit }' $FOLDER/$CSF/EIGENVEC.LIS)
+                    COEF=$(awk -v lin=$LINE -v col=$coluna 'NR==lin{ print $col; exit }' $FOLDER/$CSF/EIGENVEC.LIS || echo 0)
                                         
                         if (( $( bc <<<"${COEF#-} >= $THRESHOLD") )); then
                             awk "BEGIN { 
