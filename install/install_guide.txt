@@ -1,0 +1,89 @@
+Requisitos para instalar o SMCPP
+
+1) ifort
+
+Compilador dos programas do SMC uma vez que foram escritos em FORTRAN. 
+Dica de instalação: https://stackoverflow.com/questions/65570841/install-ifort-on-ubuntu-20
+
+Site para baixar: https://www.intel.com/content/www/us/en/developer/articles/tool/oneapi-standalone-components.html#fortran
+
+Instalação: 
+i) Vá para a pasta de dowload através do terminal
+ii) Faça do arquivo um executável através da linha de código:
+	sudo chmod +x arquivo_de_dowload.sh
+iii) Execute o arquivo através da linha de código:
+	./arquivo_de_dowload.sh
+iv) Siga as instruções para terminar a instalção (preste atenção na parte de instalação escolhida)
+v)  De acordo com a pasta escolhida na instação, coloque a seguinte linha de código em seu bashrc:
+	. /path/to/oneapi/setvars.sh 
+Obs: Ao fazer isso, você não precisara chamar a biblioteca sempre que for usar o ifort. 
+
+
+2) gcc
+
+Instalação:
+i) sudo apt install gcc
+
+
+3) Intel Math Kernel Library (MKL)
+
+Dowload: https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html
+
+Instalação: 
+i) Vá para a pasta de dowload através do terminal
+ii) Faça do arquivo um executável através da linha de código:
+	sudo chmod +x arquivo_de_dowload.sh
+iii) Execute o arquivo através da linha de código:
+	./arquivo_de_dowload.sh
+iv) Siga as instruções para terminar a instalção (preste atenção na parte de instalação escolhida)
+v)  De acordo com a pasta escolhida na instação, coloque a seguinte linha de código em seu bashrc:
+	. /path/to/oneapi/setvars.sh 
+Obs: Ao fazer isso, você não precisara chamar a biblioteca sempre que for usar o ifort. 
+
+
+4) csh
+
+Instalação:
+i) sudo apt install csh
+
+
+5) libatlas-base-dev
+
+Instalação:
+i) sudo apt-get update
+ii) sudo apt-get install libatlas-base-dev
+
+
+5) libg2c
+
+Dowload: https://rpmfind.net/linux/rpm2html/search.php?query=libg2c.so.0()(64bit)
+
+Instalação: 
+i) Vá para a pasta de dowload através do terminal
+ii) sudo add-apt-repository universe
+iii) sudo apt-get update
+iv) sudo apt-get install alien
+v) sudo alien -i compat-libf2c-34-3.4.6-32.el7.x86_64.rpm
+vi) sudo updatedb
+
+
+6) Export 
+
+i) Você precisa achar onde estão duas bibliotecas importantes: libf77blas.so.3, libg2c
+Eu recomendo instalar o locate através do comando
+	sudo apt install locate
+ii) Após encontrar a pasta de instalação, pasta utilizar o comendo export:
+	LD_LIBRARY_PATH=/path/to/libf77blas.so.3/:$LD_LIBRARY_PATH
+	LD_LIBRARY_PATH=/path/to/libg2c/:$LD_LIBRARY_PATH
+
+
+7) Verifique se a BIB1 e BIB2 estão nos diretórios certos
+
+
+8) Crie um diretório para instalar o SMCPP e vá para ele copiando o installsmc e .tar
+
+
+9) chmod +x installsmc
+
+
+10) ./installsmc 
