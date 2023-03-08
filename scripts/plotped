@@ -63,7 +63,7 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 			ELEMENT=$(($ELEMENT+1))
 
 		else  # If the quocient of the orbital number by 5 is not exact, then
-			IORBLINE=$(($ORB/5*($NBF+4)+4))  # We should find this line in .log 
+			IORBLINE=$(($ORBITAL/5*($NBF+4)+4))  # We should find this line in .log 
 			FORBLINE=$(($IORBLINE+$NBF-1))
 			sed -n "$IORBLINE,$FORBLINE p" $FOLDER/tmp2 > $FOLDER/${STATE}_$ORBITAL  # Cut and save it
 
@@ -98,7 +98,7 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 	
 	NEWCOEFF=$(echo "sqrt($SUM1)" | bc -l)  # Second part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
 	NEWCOEFF=$(echo "1/$NEWCOEFF" | bc -l)  # Third part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
-echo $NEWCOEFF
+
 ### Operate the date and save the results
 
 	perl -i -lpe '$_=$_'*$NEWCOEFF $FOLDER/${STATE}_*  # Multiply the coef. by x to rebuild normalization
@@ -121,7 +121,7 @@ echo $NEWCOEFF
 	for line in $(seq 1 $NBF); do
         	sed "${line}q;d" $FOLDER/tmp5 | cut -c1-14 >> $FOLDER/tmp6
 	done
-	echo teste
+
 	paste $FOLDER/tmp6 $FOLDER/${STATE} >> $FOLDER/tmp7
       
       	sed -i '1i\                    1' $FOLDER/tmp7
