@@ -64,6 +64,8 @@ echo "#!/bin/csh
 set EXEC = $PATH_TO_B
 " > $FOLDER/$CSF/3dk
 
+chmod +x $FOLDER/$CSF/3dk
+
 ARRAY_3DK=()
 POINTS=$(echo "($END_3DK-$INT_3DK)/$STEP" | bc -l)
 POINTS_3DK=$(echo $POINTS | awk '{printf("%.0f\n", $0)}')
@@ -168,16 +170,18 @@ sed -n "$ILINE,$FLINE p" $1 >> "$FOLDER/$CSF/3dk"  # Save the states info
 echo '
 fin' >> "$FOLDER/$CSF/3dk"
 
+mv $FOLDER/$CSF/3dk $FOLDER/$CSF/3dk_$INT_3DK-${END_3DK}.inp
+
 if [ $GROUP != "C1" ]; then
 
         for sym in ${SYM[@]}; do
 
-                cp "$FOLDER/$CSF/3dk" $FOLDER/$CSF/${sym}
+                cp $FOLDER/$CSF/3dk* $FOLDER/$CSF/${sym}
                                 
         done
 
-rm $FOLDER/$CSF/3dk
+rm $FOLDER/$CSF/3dk*
 
 fi
 
-rm $FOLDER/$CSF/tmp
+rm $FOLDER/$CSF/tmp 2>/dev/null
