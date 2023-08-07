@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# This script .
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 20/03/2023
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+# $1 = calc. part; $2 = approx.; $3=INIT; $4=$END; $5 = Number of points per input
+
+### Input important informations
+
+if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
+    echo "No input provided"
+    exit 1
+fi
+
+if [ "$1" != "3dk" ] ; then
+
+        INT_POINT=$3
+        END_POINT=$4
+
+        NUMBER_OFF_INPUTS=
+
+
+fi

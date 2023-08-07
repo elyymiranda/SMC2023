@@ -171,6 +171,8 @@ Fine
 
 end' >> "$FOLDER/$CSF/onk"
 
+chmod +x $FOLDER/$CSF/onk
+
 if [ $GROUP != "C1" ]; then
 
         for sym in ${SYM[@]}; do

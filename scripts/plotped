@@ -2,7 +2,7 @@
 
 # This script generate the modified orbitals from a SMC pseudo-spectrum analysis (script_p).
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 01/03/2023
+# Last update: 07/03/2023
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 ### Input information
@@ -22,7 +22,7 @@ sed -n "$((${ILINE}+1)),$((${FLINE}-1)) p" $1 > $FOLDER/tmp  # Save the states i
 
 TOTAL_STATES=$(wc -l $FOLDER/tmp | awk '{print $1}') # Find the last line of the states info
 
-### Obtain from the .log file (parteA - GAMESSMC) the import range of lines to modify
+### Obtain fTOTAL_STATESrom the .log file (parteA - GAMESSMC) the import range of lines to modify
 
 ILINE=$(grep -n "EIGENVECTORS" $LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Initial line
 FLINE=$(grep -n "...... END OF RHF CALCULATION ......" $LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Final line
@@ -39,14 +39,24 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 	ORB=()
 	COEF=()
 
-	for EACH in $(seq 1 $(($TOTAL/2))); do
+	if [ $TOTAL == 1 ]; then
+
+		ORB+=( $(awk -v row=$STATE -v col=1 '{if (NR==row) {print $col}}' $FOLDER/tmp) )  # Build orbital vector
+		COEF+=( $(awk -v row=$STATE -v col=2 '{if (NR==row) {print $col}}' $FOLDER/tmp) )  # Build coefficient vector
+
+	else
+
+		for EACH in $(seq 1 $(($TOTAL/2))); do
 		
-		ORB+=( $(awk -v row=$STATE -v col=$((2*$EACH-1)) '{if (NR==row) {print $col}}' $FOLDER/tmp) )  # Build orbital vector
-		COEF+=( $(awk -v row=$STATE -v col=$((2*$EACH)) '{if (NR==row) {print $col}}' $FOLDER/tmp) )  # Build coefficient vector
+			ORB+=( $(awk -v row=$STATE -v col=$((2*$EACH-1)) '{if (NR==row) {print $col}}' $FOLDER/tmp) )  # Build orbital vector
+			COEF+=( $(awk -v row=$STATE -v col=$((2*$EACH)) '{if (NR==row) {print $col}}' $FOLDER/tmp) )  # Build coefficient vector
 		
-	done
+		done
+
+	fi
 
 	ELEMENT=0
+
 
 	for ORBITAL in ${ORB[@]}; do
 
@@ -59,6 +69,21 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 
 			paste <(awk '{print $9}' $FOLDER/${STATE}_$ORBITAL) > $FOLDER/tmp3  # Take only the important column
 			mv $FOLDER/tmp3 $FOLDER/${STATE}_$ORBITAL  # Rename it 
+
+			SUM=0
+
+			for BASIS in $(seq 1 $NBF); do
+
+				LINE=$(sed -n "$BASIS p" $FOLDER/${STATE}_$ORBITAL)
+				LINE=$(echo "$LINE" | sed 's/e/*10^/')
+				SUM=$(echo "scale=8; $SUM + $LINE * $LINE" | bc)
+
+			done
+
+			RENOR=$(echo "scale=8; sqrt($SUM)" | bc)
+			RENOR=$(echo "scale=8; 1/$RENOR" | bc)
+
+			perl -i -lpe '$_=$_'*$RENOR $FOLDER/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
 			perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
 			ELEMENT=$(($ELEMENT+1))
 
@@ -70,6 +95,21 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 			COLUMN=$(($ORBCOLUMN+4))  # We should translate it in order to obtain the right column
 			paste <(awk -v COLUMN=$COLUMN '{print $COLUMN}' $FOLDER/${STATE}_$ORBITAL) > $FOLDER/tmp3  # Take only the important column
 			mv $FOLDER/tmp3 $FOLDER/${STATE}_$ORBITAL  # Rename it
+
+			SUM=0
+
+			for BASIS in $(seq 1 $NBF); do
+
+				LINE=$(sed -n "$BASIS p" $FOLDER/${STATE}_$ORBITAL)
+				LINE=$(echo "$LINE" | sed 's/e/*10^/')
+				SUM=$(echo "scale=8; $SUM + $LINE * $LINE" | bc)
+
+			done
+
+			RENOR=$(echo "scale=8; sqrt($SUM)" | bc)
+			RENOR=$(echo "scale=8; 1/$RENOR" | bc)
+
+			perl -i -lpe '$_=$_'*$RENOR $FOLDER/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
 			perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
 			ELEMENT=$(($ELEMENT+1))
 		fi
@@ -118,11 +158,12 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 	sed '1,3d' $FOLDER/tmp2 > $FOLDER/tmp5
 	sed -i "1,$NBF ! d" $FOLDER/tmp5
 	
+	> $FOLDER/tmp6
 	for line in $(seq 1 $NBF); do
         	sed "${line}q;d" $FOLDER/tmp5 | cut -c1-14 >> $FOLDER/tmp6
 	done
 
-	paste $FOLDER/tmp6 $FOLDER/${STATE} >> $FOLDER/tmp7
+	paste $FOLDER/tmp6 $FOLDER/${STATE} > $FOLDER/tmp7
       
       	sed -i '1i\                    1' $FOLDER/tmp7
         sed -i '2i\                  0.0000' $FOLDER/tmp7
@@ -131,12 +172,8 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 
 	sed '/...... END OF RHF CALCULATION ....../,$!d' $LOG >> $FOLDER/${STATE}.final
 
-	rm $FOLDER/tmp* $FOLDER/${STATE} $FOLDER/${STATE}_*
+	rm $FOLDER/${STATE}_* $FOLDER/${STATE}
 
 done
 
-#rm $FOLDER/tmp*  # Remove temporary file 
-
-
-
-
+rm $FOLDER/tmp*  # Remove temporary file 

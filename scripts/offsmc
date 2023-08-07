@@ -71,25 +71,25 @@ echo "#!/bin/csh
 set EXECB = $PATH_TO_B
 
 \$EXECB << fim > off.lis
-" > "$FOLDER/$CSF/off"
+" > "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
 
 ILINE=$(grep -n "INI_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
 FLINE=$(grep -n "END_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
-sed -n "$ILINE,$FLINE p" $1 >> "$FOLDER/$CSF/off"  # Save the states info
+sed -n "$ILINE,$FLINE p" $1 >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"  # Save the states info
 
 echo '
 
-%INI_SYMETRY_BLOCK' >> "$FOLDER/$CSF/off"
+%INI_SYMETRY_BLOCK' >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
 
 
 if [ $GROUP == CS ]; then
 
-        echo 'SYMOP = Z' >> "$FOLDER/$CSF/off"
+        echo 'SYMOP = Z' >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
 
         l1=$(grep -n "ORBITAL SYMMETRIES" $FOLDER/$EIGENVEC | awk '{print $1}' | tr -d :) #find the line of occurance of this word
         l2=$(grep -n "SYMMETRY BLOCKS" $FOLDER/$EIGENVEC | awk '{print $1}' | tr -d :) #find the line of occurance of this word
         sed -n "$((${l1}+2)), $((${l2}-3)) p" $FOLDER/$EIGENVEC > $FOLDER/$CSF/tmp
-        cat $FOLDER/$CSF/tmp >> "$FOLDER/$CSF/off"
+        cat $FOLDER/$CSF/tmp >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
 
 elif [ $GROUP == C2V ]; then
 
@@ -97,7 +97,7 @@ elif [ $GROUP == C2V ]; then
 
 elif [ $GROUP == C1 ]; then
 
-        echo 'SYMOP = NO' >> "$FOLDER/$CSF/off"
+        echo 'SYMOP = NO' >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
 
 else
         echo "This $GROUP is not in this script".
@@ -107,35 +107,37 @@ fi
 
 echo '%END_SYMETRY_BLOCK
 
-' >> "$FOLDER/$CSF/off"
+' >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
 
 NKPTS=$(($NKPTS_OFF_FROM - $NKPTS_OFF_TO + 1))
 
 ILINE=$(grep -n "INI_QUADTRE_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
 FLINE=$(grep -n "END_QUADTRE_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
-sed -n "$ILINE,$(($FLINE-1)) p" $1 >> "$FOLDER/$CSF/off"  # Save the states info
-echo "NKPTS = $NKPTS" >> "$FOLDER/$CSF/off"
+sed -n "$ILINE,$(($FLINE-1)) p" $1 >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"  # Save the states info
+echo "NKPTS = $NKPTS" >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
 
 for j in $(seq $NKPTS_OFF_TO $NKPTS_OFF_FROM); do
         if [ $j -le 9 ]; then
-                echo "0$j" >> "$FOLDER/$CSF/off"
+                echo "0$j" >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
         else
-                echo "$j" >> "$FOLDER/$CSF/off"
+                echo "$j" >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
         fi
 done
 
 echo '%END_QUADTRE_BLOCK
-fim' >> "$FOLDER/$CSF/off"
+fim' >> "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp"
+
+chmod +x $FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp
 
 if [ $GROUP != "C1" ]; then
 
         for sym in ${SYM[@]}; do
 
-                cp "$FOLDER/$CSF/off" $FOLDER/$CSF/${sym}
+                cp "$FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp" $FOLDER/$CSF/${sym}
                 
         done
 
-rm $FOLDER/$CSF/off 2>/dev/null
+rm $FOLDER/$CSF/off_${NKPTS_OFF_TO}_${NKPTS_OFF_FROM}.inp 2>/dev/null
 
 fi
 
