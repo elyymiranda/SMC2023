@@ -161,7 +161,7 @@ elif [ $GROUP == C1 ]; then
     for lis in ${ARRAY_LIS[@]}; do
 
         INVERT=$(grep "*** INVERT" $FOLDER/$CSF/$lis | cut -d "=" -f 2 | sed 's/ //g' | sed 's/\*//g')
-        if [ $INVERT == "SVD_KMT" ]; then
+        if [ $INVERT == "SVD_KMT" ] || [ $INVERT == "SVD_LPK" ]; then
 
             SVDPTS=$(grep " SVDPTS" $FOLDER/$CSF/$lis | cut -d "=" -f 2 | sed 's/ //g' )
 
