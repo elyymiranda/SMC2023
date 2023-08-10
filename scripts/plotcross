@@ -41,7 +41,7 @@ if [ $GROUP == CS ]; then
         for lis in ${ARRAY_LIS[@]}; do
 
             INVERT=$(grep "*** INVERT" $FOLDER/$CSF/$sym/$lis | cut -d "=" -f 2 | sed 's/ //g' | sed 's/\*//g')
-            if [ $INVERT == "SVD_KMT" ]; then
+            if [ $INVERT == "SVD_KMT" ] || [ $INVERT == "SVD_LPK" ]; then
 
                 SVDPTS=$(grep " SVDPTS" $FOLDER/$CSF/$sym/$lis | cut -d "=" -f 2 | sed 's/ //g' )
 
@@ -104,7 +104,7 @@ elif [ $GROUP == C2V ]; then
         for lis in ${ARRAY_LIS[@]}; do
 
             INVERT=$(grep "*** INVERT" $FOLDER/$CSF/$sym/$lis | cut -d "=" -f 2 | sed 's/ //g' | sed 's/\*//g')
-            if [ $INVERT == "SVD_KMT" ]; then
+            if [ $INVERT == "SVD_KMT" ] || [ $INVERT == "SVD_LPK" ]; then
 
                 SVDPTS=$(grep " SVDPTS" $FOLDER/$CSF/$sym/$lis | cut -d "=" -f 2 | sed 's/ //g' )
 
