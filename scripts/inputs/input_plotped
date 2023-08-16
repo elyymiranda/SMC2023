@@ -8,19 +8,19 @@ LOG=/home/emiranda/Documentos/USP/Doutorado/moleculas/nitrodich/scattering/c1/sc
 # After the begin you should put the number of orbitals, orbital number (obtained from pseudo-spectrum) and the coefficient of the choosen orbital. Each state required will ocupy one line, as a show here in the exemple:
 
 #BEGIN
-# Number of orb.        Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       
-# 2                     35           -0.6         38           0.4
-# 3                     36            0.4         37           0.7          38           0.3
+# Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       Orb. Numb.   Coeff.       
+# 35           -0.6         38           0.4
+# 36            0.4         37           0.7          38           0.3
 #END
 
 # Now, it is your turn. Remember to not leave empty lines between the begin and end (as the exemple above)
 
  BEGIN
-3 30  0.44 31 -0.69 33 -0.35
-2 30 -0.80 31 -0.37
-3 31  0.48 33 -0.59 36  0.39
-2 32  0.46 34 -0.34
-2 38  0.42 40  0.36
-3 33  0.38 34 -0.32 36  0.46
-1 32  0.48
+30  0.44 31 -0.69 33 -0.35
+30 -0.80 31 -0.37
+31  0.48 33 -0.59 36  0.39
+32  0.46 34 -0.34
+38  0.42 40  0.36
+33  0.38 34 -0.32 36  0.46
+32  0.48
  END
