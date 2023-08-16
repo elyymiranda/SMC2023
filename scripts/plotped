@@ -2,7 +2,7 @@
 
 # This script generate the modified orbitals from a SMC pseudo-spectrum analysis (script_p).
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 07/03/2023
+# Last update: 16/08/2023
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 ### Input information
@@ -70,20 +70,6 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 			paste <(awk '{print $9}' $FOLDER/${STATE}_$ORBITAL) > $FOLDER/tmp3  # Take only the important column
 			mv $FOLDER/tmp3 $FOLDER/${STATE}_$ORBITAL  # Rename it 
 
-			SUM=0
-
-			for BASIS in $(seq 1 $NBF); do
-
-				LINE=$(sed -n "$BASIS p" $FOLDER/${STATE}_$ORBITAL)
-				LINE=$(echo "$LINE" | sed 's/e/*10^/')
-				SUM=$(echo "scale=8; $SUM + $LINE * $LINE" | bc)
-
-			done
-
-			RENOR=$(echo "scale=8; sqrt($SUM)" | bc)
-			RENOR=$(echo "scale=8; 1/$RENOR" | bc)
-
-			perl -i -lpe '$_=$_'*$RENOR $FOLDER/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
 			perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
 			ELEMENT=$(($ELEMENT+1))
 
@@ -96,20 +82,6 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 			paste <(awk -v COLUMN=$COLUMN '{print $COLUMN}' $FOLDER/${STATE}_$ORBITAL) > $FOLDER/tmp3  # Take only the important column
 			mv $FOLDER/tmp3 $FOLDER/${STATE}_$ORBITAL  # Rename it
 
-			SUM=0
-
-			for BASIS in $(seq 1 $NBF); do
-
-				LINE=$(sed -n "$BASIS p" $FOLDER/${STATE}_$ORBITAL)
-				LINE=$(echo "$LINE" | sed 's/e/*10^/')
-				SUM=$(echo "scale=8; $SUM + $LINE * $LINE" | bc)
-
-			done
-
-			RENOR=$(echo "scale=8; sqrt($SUM)" | bc)
-			RENOR=$(echo "scale=8; 1/$RENOR" | bc)
-
-			perl -i -lpe '$_=$_'*$RENOR $FOLDER/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
 			perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
 			ELEMENT=$(($ELEMENT+1))
 		fi
@@ -119,22 +91,11 @@ for STATE in $(seq 1 $TOTAL_STATES); do
 
 ### Find the coefficients in input and solve the Eq. to obtain the value to fix the probabilities
 
-	for BASIS in $(seq 1 $NBF); do
-
-		SUM2=0
-		
-		for ORBITAL in ${ORB[@]}; do
-
-			LINE=$(sed -n "$BASIS p" $FOLDER/${STATE}_$ORBITAL)
-			LINE=$(echo "$LINE" | sed 's/e/*10^/')
-			SUM2=$(echo "scale=6; $SUM2 + $LINE" | bc)
-		
-		done
-
-		SUM2=$(echo "scale=6; $SUM2 * $SUM2" | bc)
-		SUM1=$(echo "scale=6; $SUM1 + $SUM2" | bc)
-
-	done
+    for COEF in ${COEF[@]}; do
+        SUM2=$(echo "scale=6; $COEF" | bc)
+        SUM2=$(echo "scale=6; $SUM2 * $SUM2" | bc)
+        SUM1=$(echo "scale=6; $SUM1 + $SUM2" | bc)
+    done
 	
 	NEWCOEFF=$(echo "sqrt($SUM1)" | bc -l)  # Second part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
 	NEWCOEFF=$(echo "1/$NEWCOEFF" | bc -l)  # Third part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
