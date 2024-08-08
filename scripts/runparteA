@@ -2,7 +2,7 @@
 
 # This script create all the structure for the parteA of SMC calculations.
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 07/02/2023
+# Last update: 21/06/2024
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 
@@ -20,13 +20,20 @@ DAT=$(grep "^DAT" $1 | cut -d "=" -f 2 | sed 's/ //g')
 VNUC='VNUC.FILE'
 FOCK='FOCK.FILE'
 MOLECULE=$(grep -n " INPUT CARD>...molecule's name:" $FOLDER/$LOG | cut -c38-)  # Find molecule name in input
-GROUP=$(grep -n "THE POINT GROUP OF THE MOLECULE IS" $FOLDER/$LOG | cut -c41- | sed 's/ //g')   # Find the Symmetry group of the molecule
 CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Find the CSF's construction type
+
+# GROUP
+GROUP=$(grep -n "THE POINT GROUP OF THE MOLECULE IS" $FOLDER/$LOG | cut -c41- | sed 's/ //g')   # Find the Symmetry group of the molecule
+ORDER=$(grep -n "THE ORDER OF THE PRINCIPAL AXIS IS" $FOLDER/$LOG | cut -c41- | sed 's/ //g')   # Find the Symmetry group of the mole
+if [ $ORDER != 0 ]; then
+        GROUP="${GROUP//N/$ORDER}"
+fi
+
 
 PATH_TO_SIM="$SMC/simetrias/simetrias_conf.x"
 PATH_TO_A="$SMC/a2018/a2018.x"
-PATH_TO_IREAD="$SMC/read_gamess/ReadGamess-$GROUP.x"
-PATH_TO_EIGENVALUES="$SMC/read_eigenvalues/read_eigenvalues.x"
+PATH_TO_IREAD="$SMC/iread/ReadGamess_$GROUP.x"
+PATH_TO_EIGENVALUES="$SMC/read-eigenvalues/read_eigenvalues.x"
 
 
 ### Folder creation 
@@ -263,6 +270,7 @@ if [ $GROUP == CS ]; then
                                 Ok! You choose the energy $ENERSYM Hartree for $sym representation.
                                         "
                                         rm $FOLDER/simetria_${sym}_tmp.inp
+                                        echo " You choose the energy $ENERSYM Hartree for $sym representation." >> $FOLDER/$CSF/${sym}/simetria.lis
                                         break
                                         ;;
                                 "Try a diferent energy")
@@ -299,27 +307,89 @@ if [ $GROUP == CS ]; then
 	
 
 elif [ $GROUP == C2V ]; then
-	echo "2" >> $FOLDER/simetria.inp
+	echo "  2" >> $FOLDER/simetria.inp
 
-	l3=$(grep -n "ORBITAL SYMMETRIES" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
-        l4=$(grep -n "SYMMETRY BLOCKS" $FOLDER/eigenvec-sim | awk '{print $1}' | tr -d :) #find the line of occurance of this word
-        sed -n "$((${l3}+2)), $((${l4}-3)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp2
+        # Read the input file and build the array from specific lines
+        xnumbers=()
+        start_reading=false
+        line_buffer=()
+        while IFS= read -r line; do
+                if [[ $line == "  X reflection"* ]]; then
+                        start_reading=true
+                        continue
+                elif [[ $line == "  Z reflection"* ]]; then
+                        # Remove the last two lines from line_buffer
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        break
+                fi
 
-        LINE=$(grep -n "$NUMBER_OF_ORBITALS" $FOLDER/tmp2 | cut -d: -f1)
-        ARRAY=()
+                if $start_reading; then
+                        line_buffer+=("$line")
+                fi
+        done < "$FOLDER/eigenvec-sim"
 
-        for column in $(seq 1 15); do
-                VALUE=$(awk -v line="$LINE" -v col="$column" 'NR == line { print $col }' < $FOLDER/tmp2)
-                if [ $VALUE -le $NUMBER_OF_ORBITALS ]; then
-                ARRAY+=($VALUE)
+        # Process the line_buffer to build the array
+        for line in "${line_buffer[@]}"; do
+                for number in $line; do
+                        xnumbers+=($number)
+                done
+        done
+
+        # Read the input file and build the array from specific lines
+        znumbers=()
+        start_reading=false
+        line_buffer=()
+        while IFS= read -r line; do
+                if [[ $line == "  Z reflection"* ]]; then
+                        start_reading=true
+                        continue
+                elif [[ $line == "                    SYMMETRY BLOCKS"* ]]; then
+                        # Remove the last two lines from line_buffer
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        break
+                fi
+
+                if $start_reading; then
+                        line_buffer+=("$line")
+                fi
+        done < "$FOLDER/eigenvec-sim"
+
+        # Process the line_buffer to build the array
+        for line in "${line_buffer[@]}"; do
+                for number in $line; do
+                        znumbers+=($number)
+                done
+        done
+
+        # Print the array in the specified format
+        count=0
+        for number in "${xnumbers[@]}"; do
+                printf "%5d" $number >> "$FOLDER/simetria.inp"
+                count=$((count + 1))
+                if (( count % 15 == 0 )); then
+                        echo "" >> "$FOLDER/simetria.inp"
+                fi
+                if [ $count = $NUMBER_OF_ORBITALS ]; then
+                        echo "" >> "$FOLDER/simetria.inp"
+			break
                 fi
         done
 
-        sed -n "/$NUMBER_OF_ORBITALS/q;p" $FOLDER/tmp2 > $FOLDER/tmp3
-        echo ${ARRAY[@]} >> $FOLDER/tmp3
-
-
-        cat $FOLDER/tmp3 >> $FOLDER/simetria.inp
+        # Print the array in the specified format
+        count=0
+        for number in "${znumbers[@]}"; do
+                printf "%5d" $number >> "$FOLDER/simetria.inp"
+                count=$((count + 1))
+                if (( count % 15 == 0 )); then
+                        echo "" >> "$FOLDER/simetria.inp"
+                fi
+                if [ $count = $NUMBER_OF_ORBITALS ]; then
+			echo "" >> "$FOLDER/simetria.inp"
+			break
+		fi
+	done
 
 
         for sym in ${SYM[@]}; do
@@ -367,6 +437,7 @@ elif [ $GROUP == C2V ]; then
                                 Ok! You choose the energy $ENERSYM Hartree for $sym representation.
                                         "
                                         rm $FOLDER/simetria_${sym}_tmp.inp
+                                        echo " You choose the energy $ENERSYM Hartree for $sym representation." >> $FOLDER/$CSF/${sym}/simetria.lis
                                         break
                                         ;;
                                 "Try a diferent energy")
@@ -454,6 +525,7 @@ elif [ $GROUP == C1 ]; then
                                 Ok! You choose the energy $ENERSYM Hartree.
                                 "
                                 rm $FOLDER/simetria_tmp.inp
+                                echo " You choose the energy $ENERSYM Hartree for $sym representation." >> $FOLDER/$CSF/simetria.lis
                                 break
                                 ;;
                         "Try a diferent energy")

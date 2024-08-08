@@ -15,13 +15,13 @@ fi
 FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
 EIGENVEC='eigenvec-sim'
 GROUP=$(sed -n '2p' eigenvec-sim)   # Find the Symmetry group of the molecule
-GAMES_LOG=$(grep -n "LOG    =" $1 | cut -c12-)
+GAMES_LOG=$(grep -n "LOG" $1 | cut -d "=" -f 2 | sed 's/ //g')
 MIN_ENERG=$(grep "^MIN_ENERG" $1 | cut -d "=" -f 2 | sed 's/ //g')
 MAX_ENERG=$(grep "^MAX_ENERG" $1 | cut -d "=" -f 2 | sed 's/ //g')
 THRESHOLD=$(grep "^THRESHOLD" $1 | cut -d "=" -f 2 | sed 's/ //g')
 CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')
 
-PATH_TO_HCOMP="$SMC/hcomp/hcomp_v2.x"
+PATH_TO_HCOMP="$SMC/hcomp_v2/hcomp_v2.x"
 
 
 ### Point group hcomp input production and running
@@ -46,6 +46,49 @@ if [ $GROUP == CS ]; then
 
     for sym in ${SYM[@]}; do
 
+echo "
+Starting with $sym irredutible representation of $GROUP point symmetry.
+"
+
+		# Obtain the energy information for parte A input
+
+		FINAL_LINE=$(wc -l < $FOLDER/$CSF/$sym/$sym-a)
+		ETARGT=$(awk -v VALUE=$(($FINAL_LINE-2)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a)
+
+		# Number of orbitals utilized in parteA
+
+		LINHA=$(grep -n "INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
+		
+        if [ $CSF = "SE" ]; then
+            NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a | awk '{ print $3 }')
+
+        else
+            NCONFS=$(grep "IND. SLATER DETERMINANTS IN DUBLET SPACE" $FOLDER/$CSF/$sym/$sym-a.dat | cut -d "=" -f 2 | sed 's/ //g')
+
+        fi
+#echo "Linha: $LINHA NCONFS: $NCONFS"
+
+
+        # hcomp input production and run 
+
+	    echo '#!/bin/csh
+
+set EXEC ='" $PATH_TO_HCOMP"'
+
+$EXEC << fim > hcomp.dat
+NCONFS = '"$NCONFS"  > $FOLDER/$CSF/$sym/hcomp
+
+        ILINE=$(grep -n "SQUARE" $FOLDER/$1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+        FLINE=$(grep -n "EUPPER" $FOLDER/$1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+        sed -n "$ILINE p" $FOLDER/$1 >> $FOLDER/$CSF/$sym/hcomp  
+        echo "ETARGT = $ETARGT" >> $FOLDER/$CSF/$sym/hcomp
+        sed -n "$(($ILINE + 1)),$FLINE p" $FOLDER/$1 >> $FOLDER/$CSF/$sym/hcomp
+        echo 'fim' >> $FOLDER/$CSF/$sym/hcomp
+
+        chmod +x $FOLDER/$CSF/$sym/hcomp
+        cd $FOLDER/$CSF/$sym/
+        ./hcomp
+
         l1=$(grep -n "%INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
         NUMBER_OF_OCC_ORBITALS=$(sed -n "$((${l1}+1)) p" $FOLDER/$CSF/$sym/$sym-a | awk '{print $2}' | sed 's/[^0-9]*//g')
 
@@ -56,18 +99,21 @@ if [ $GROUP == CS ]; then
 
         NUMBER_STATES=$(wc -l $FOLDER/tmp | awk '{ print $1 }')
 
-        TOTAL_MVO=$(grep "TOTAL NUMBER OF MOS IN VARIATION SPACE" $GAMES_LOG | cut -d "=" -f 2 | sed 's/ //g')
+        TOTAL_MVO=$(grep "TOTAL NUMBER OF MOS IN VARIATION SPACE" $FOLDER/$GAMES_LOG | cut -d "=" -f 2 | sed 's/ //g')
+
         awk -v TOT="$TOTAL_MVO" '$1 <= TOT { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
 
         NUMBER_OF_ORBITALS=$(wc -l $FOLDER/$CSF/$sym/list | awk '{ print $1 }')
         IMPLINES=$( echo "$NUMBER_OF_ORBITALS/8" | bc)
 
-
         echo "The threshold is $THRESHOLD" > $FOLDER/$CSF/$sym/pseudo.info
+#	echo NUMBER_STATES = $NUMBER_STATES
 
         for states in $(seq 1  ${NUMBER_STATES}); do
-                ENERGY=$( awk -v STATE=$states 'NR==STATE{ print; exit }' tmp)
-                if (( $( bc <<<"$ENERGY >= $MIN_ENERG && $ENERGY <= $MAX_ENERG") )); then
+                ENERGY=$( awk -v STATE=$states 'NR==STATE{ print; exit }' $FOLDER/tmp)
+ #               echo ENERGY: $ENERGY
+
+		if (( $( bc <<<"$ENERGY >= $MIN_ENERG && $ENERGY <= $MAX_ENERG") )); then
                     cont=0
                     echo "
 Pseudo state number $states
@@ -104,13 +150,42 @@ CSF  Coeff. Corresp. Orb." >> $FOLDER/$CSF/$sym/pseudo.info
 
     done
 
+echo "
+Done with $sym irredutible representation of $GROUP point symmetry.
+"
 
 elif [ $GROUP == C2V ]; then
     SYM=()
-    SYM+=(a1)
+    SYM+=(a2)
     SYM+=(b1)
     SYM+=(b2)
-    SYM+=(a2)
+    SYM+=(a1)
+
+    l1=$(grep -n "BLOCK 1" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(grep -n "BLOCK 2" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2}-1)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/a1/list
+    rm $FOLDER/tmp_list
+
+    l1=$(grep -n "BLOCK 2" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(grep -n "BLOCK 3" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2}-1)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/b1/list
+    rm $FOLDER/tmp_list
+
+    l1=$(grep -n "BLOCK 3" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(grep -n "BLOCK 4" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2}-1)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/b2/list
+    rm $FOLDER/tmp_list
+
+
+    l1=$(grep -n "BLOCK 4" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(wc -l $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2})) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/a2/list
+    rm $FOLDER/tmp_list
+
 
     for sym in ${SYM[@]}; do
 
@@ -121,8 +196,15 @@ elif [ $GROUP == C2V ]; then
 
 		# Number of orbitals utilized in parteA
 
-		LINHA=$(grep -n "INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
-		NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a | awk '{ print $3 }')
+        if [ $CSF = "SE" ]; then
+            NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a | awk '{ print $3 }')
+
+        else
+            NCONFS=$(grep "IND. SLATER DETERMINANTS IN DUBLET SPACE" $FOLDER/$CSF/$sym/$sym-a.dat | cut -d "=" -f 2 | sed 's/ //g')
+
+        fi
+
+#echo "Linha: $LINHA NCONFS: $NCONFS"
 
         # hcomp input production and run 
 
@@ -144,9 +226,68 @@ NCONFS = '"$NCONFS"  > $FOLDER/$CSF/$sym/hcomp
         cd $FOLDER/$CSF/$sym/
         ./hcomp
 
-    done
+        l1=$(grep -n "%INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+        NUMBER_OF_OCC_ORBITALS=$(sed -n "$((${l1}+1)) p" $FOLDER/$CSF/$sym/$sym-a | awk '{print $2}' | sed 's/[^0-9]*//g')
 
-    echo "The analysis is not working yet for $GROUP."
+        awk -v NUMOCC="$NUMBER_OF_OCC_ORBITALS" '$1 > NUMOCC { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
+
+        grep -n 'EIGENVALUE' $FOLDER/$CSF/$sym/EIGENVEC.LIS |  cut -d "=" -f2 | tr -d : | awk '{printf "%.2f\n",$1}' > $FOLDER/tmp   # Find the number of pseudostates and the line of occurence
+        LINES_STATE=$(grep -n 'EIGENVALUE' $FOLDER/$CSF/$sym/EIGENVEC.LIS | awk '{print $1}' | tr -d : | awk 'p{print $0-p}{p=$0}' | head -n 1)    # Find the number of lines between two states
+
+        NUMBER_STATES=$(wc -l $FOLDER/tmp | awk '{ print $1 }')
+
+        TOTAL_MVO=$(grep "TOTAL NUMBER OF MOS IN VARIATION SPACE" $FOLDER/$GAMES_LOG | cut -d "=" -f 2 | sed 's/ //g')
+
+        awk -v TOT="$TOTAL_MVO" '$1 <= TOT { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
+
+        NUMBER_OF_ORBITALS=$(wc -l $FOLDER/$CSF/$sym/list | awk '{ print $1 }')
+        IMPLINES=$( echo "$NUMBER_OF_ORBITALS/8" | bc)
+
+        echo "The threshold is $THRESHOLD" > $FOLDER/$CSF/$sym/pseudo.info
+#       echo NUMBER_STATES = $NUMBER_STATES
+
+        for states in $(seq 1  ${NUMBER_STATES}); do
+                ENERGY=$( awk -v STATE=$states 'NR==STATE{ print; exit }' $FOLDER/tmp)
+ #               echo ENERGY: $ENERGY
+
+                if (( $( bc <<<"$ENERGY >= $MIN_ENERG && $ENERGY <= $MAX_ENERG") )); then
+                    cont=0
+                    echo "
+Pseudo state number $states
+Energy = $ENERGY eV
+CSF  Coeff. Corresp. Orb." >> $FOLDER/$CSF/$sym/pseudo.info
+                    for linha in $(seq 1 $IMPLINES); do
+                        for coluna in $(seq 1 8); do
+                            LINE=$(($LINES_STATE*$states-$LINES_STATE+1+$linha))
+                            COEF=$(awk -v lin=$LINE -v col=$coluna 'NR==lin{ print $col; exit }' $FOLDER/$CSF/$sym/EIGENVEC.LIS || echo 0)
+                            if (( $( bc <<<"${COEF#-} >= $THRESHOLD") )); then
+
+                                csf=$((8*$linha + $coluna - 8))
+                                CORORB=$(sed -n "$csf p" $FOLDER/$CSF/$sym/list)
+                                awk "BEGIN { 
+                                lin=$linha; col=$coluna; coef=$COEF; OCC_ORB=$CORORB
+                                CSF=8*lin + col - 8
+                                COR_ORB=OCC_ORB
+                                printf \"%.f    %.2f   %.1f\\n\", CSF, coef, COR_ORB
+                                }" >> $FOLDER/$CSF/$sym/pseudo.info
+                                cont=1
+                            fi
+
+                        done
+
+                    done
+
+                    if (( $cont == 0 )); then
+                        head -n -4 $FOLDER/$CSF/$sym/pseudo.info > tmp.txt && mv tmp.txt $FOLDER/$CSF/$sym/pseudo.info
+                    fi
+
+                fi
+
+        done
+
+    cd $FOLDER
+
+    done
 
 elif [ $GROUP == C1 ]; then
 
@@ -158,7 +299,14 @@ elif [ $GROUP == C1 ]; then
 	# Number of orbitals utilized in parteA
 
 	LINHA=$(grep -n "INI_WAVEFUN_BLOCK" $FOLDER/$CSF/a | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
-	NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/a | awk '{ print $3 }')
+
+    if [ $CSF = "SE" ]; then
+	    NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/a | awk '{ print $3 }')
+
+    else
+        NCONFS=$(grep "IND. SLATER DETERMINANTS IN DUBLET SPACE" $FOLDER/$CSF/$sym/a.dat | cut -d "=" -f 2 | sed 's/ //g')
+
+    fi
 
     # hcomp input production and run 
 

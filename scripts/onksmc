@@ -2,7 +2,7 @@
 
 # This script create all the structure for the SMC scattering calculations (parte B).
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 31/01/2023
+# Last update: 24/06/2024
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 
@@ -23,7 +23,7 @@ INT_ONK=$(grep "^INT_POINT" $1 | cut -d "=" -f 2 | sed 's/ //g')
 END_ONK=$(grep "^END_POINT" $1 | cut -d "=" -f 2 | sed 's/ //g')
 STEP=$(grep "^STEP" $1 | cut -d "=" -f 2 | sed 's/ //g')
 
-PATH_TO_B="$SMC/b2018/b2018.x"
+PATH_TO_B="$SMC/b2018/teste/1/b2018.x"
 
 
 ### Folder creation 
@@ -43,7 +43,6 @@ elif [ $GROUP == C2V ]; then
         SYM+=(b1)
         SYM+=(b2)
         SYM+=(a2)
-        echo "This $GROUP is not in this script".
 
         for sym in $(${SYM}[@]); do
                 mkdir -p $FOLDER/$CSF/$sym
@@ -64,6 +63,8 @@ echo "#!/bin/csh
 
 set EXECB = $PATH_TO_B
 " > $FOLDER/$CSF/onk
+
+chmod +x $FOLDER/$CSF/onk
 
 ARRAY_ONK=()
 POINTS=$(echo "($END_ONK-$INT_ONK)/$STEP" | bc -l)
@@ -148,7 +149,104 @@ if [ $GROUP == CS ]; then
 
 elif [ $GROUP == C2V ]; then
 
-        echo "This $GROUP is not in this script".
+echo 'SYMOP = XZ' >> "$FOLDER/$CSF/onk"
+
+        # Read the input file and build the array from specific lines
+        xnumbers=()
+        start_reading=false
+        line_buffer=()
+        while IFS= read -r line; do
+                if [[ $line == "  X reflection"* ]]; then
+                        start_reading=true
+                        continue
+                elif [[ $line == "  Z reflection"* ]]; then
+                        # Remove the last two lines from line_buffer
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        break
+                fi
+
+                if $start_reading; then
+                        line_buffer+=("$line")
+                fi
+        done < "$FOLDER/$EIGENVEC"
+
+        # Process the line_buffer to build the array
+        for line in "${line_buffer[@]}"; do
+                for number in $line; do
+                        xnumbers+=($number)
+                done
+        done
+
+        # Read the input file and build the array from specific lines
+        znumbers=()
+        start_reading=false
+        line_buffer=()
+        while IFS= read -r line; do
+                if [[ $line == "  Z reflection"* ]]; then
+                        start_reading=true
+                        continue
+                elif [[ $line == "                    SYMMETRY BLOCKS"* ]]; then
+                        # Remove the last two lines from line_buffer
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        break
+                fi
+
+                if $start_reading; then
+                        line_buffer+=("$line")
+                fi
+        done < "$FOLDER/$EIGENVEC"
+
+        # Process the line_buffer to build the array
+        for line in "${line_buffer[@]}"; do
+                for number in $line; do
+                        znumbers+=($number)
+                done
+        done
+
+        # Multiply signals 
+        xznumbers=()
+        pointer=-1
+        for i in ${xnumbers[@]}; do
+                pointer=$((pointer+1))
+                if [ ${znumbers[$pointer]} -gt 0 ]; then
+                        xznumbers+=($i)
+                else
+                        i=$((i*(-1)))
+                        xznumbers+=($i)
+                fi
+        done
+
+        # Print the array in the specified format
+        count=0
+        for number in "${xnumbers[@]}"; do
+                printf "%5d" $number >> "$FOLDER/$CSF/onk"
+                count=$((count + 1))
+                if (( count % 15 == 0 )); then
+                        echo "" >> "$FOLDER/$CSF/onk"
+                fi
+        done
+
+        # Print the array in the specified format
+        count=0
+        for number in "${znumbers[@]}"; do
+                printf "%5d" $number >> "$FOLDER/$CSF/onk"
+                count=$((count + 1))
+                if (( count % 15 == 0 )); then
+                        echo "" >> "$FOLDER/$CSF/onk"
+                fi
+        done
+
+        # Print the array in the specified format
+        count=0
+        for number in "${xznumbers[@]}"; do
+                printf "%5d" $number >> "$FOLDER/$CSF/onk"
+                count=$((count + 1))
+                if (( count % 15 == 0 )); then
+                        echo "" >> "$FOLDER/$CSF/onk"
+                fi
+        done
 
 elif [ $GROUP == C1 ]; then
 
@@ -170,8 +268,6 @@ echo '
 Fine
 
 end' >> "$FOLDER/$CSF/onk"
-
-chmod +x $FOLDER/$CSF/onk
 
 if [ $GROUP != "C1" ]; then
 

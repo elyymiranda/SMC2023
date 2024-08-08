@@ -2,7 +2,7 @@
 
 # This script create all the structure for the GAMES-SMC calculations.
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 07/02/2023
+# Last update: 20/06/2024
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 ### Input important informations
@@ -17,7 +17,7 @@ FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
 cp $SMC/nuc/PPandBASIS.txt $FOLDER
 
 MOLECULE=$(grep "^MNAME" $1 | cut -d "=" -f 2 | sed 's/ //g') # Find molecule name in input
-GROUP=$(grep "^GROUP" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Find molecule point group symmetry in input
+GROUP=$(grep "^GROUP" $1 | cut -d "=" -f 2 | cut -c2-)  # Find molecule point group symmetry in input
 MVO=$(grep "^MVO" $1 | cut -d "=" -f 2)  # Find molecule required MV0'S (could be more than just one) in input
 EXTRAC=$(grep "^EXTRAC" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Find any required extra center in input
 RPPLANE=$(grep "^RPLANE" $1 | cut -d "=" -f 2 | sed 's/ //g')  # Find molecule symmetry plane in input
@@ -82,13 +82,15 @@ echo "Running nuc.inp"
 $FOLDER/nuc.inp
 echo 'End of this process'
 
+vi $FOLDER/gmssmc.inp
+
 for i in $MVO; do
         echo "Running nucgms for MOV=$i"
         sed -i '3d' $FOLDER/gmssmc.inp
         sed -i "3 i \ \$SCF DIRSCF=.TRUE. MVOQ=$i \$END" $FOLDER/gmssmc.inp
         cp $FOLDER/gmssmc.inp $FOLDER/res-bhs${i}.inp
         cp $FOLDER/VNUC.FILE /tmp/res-bhs${i}.F77
-        $SMC/gamess-smc/rungms res-bhs${i}.inp 00 1>& res-bhs${i}.log
+        $SMC/nuc/rungms res-bhs${i}.inp 00 1>& res-bhs${i}.log
         mv /tmp/res-bhs${i}.dat $FOLDER/res-bhs${i}.dat
         mv /tmp/res-bhs${i}.OCK $FOLDER/FOCK.FILE
         mv /tmp/res-bhs* $FOLDER/  2>/dev/null
