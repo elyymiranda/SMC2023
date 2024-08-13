@@ -6,7 +6,7 @@ Historically, Takatsuka and McKoy constructed the multichannel Schwinger method 
 
 The scattering electronic wave function is described by:
 
-$$ |\Psi^{(\pm)}_{\textbf{k}_i}\rangle = \sum_\mu c_\mu^{(\pm)}(\textbf{k}_i) |\chi_\mu\rangle,$$
+$|\Psi^{(\pm)}_{\textbf{k}_i}\rangle = \sum_\mu c_\mu^{(\pm)}(\textbf{k}_i) |\chi_\mu\rangle,$
 
 where $\textbf{k}_i$ denotes the wave vector of the incident electron, and $+(-)$ corresponds to the boundary condition associated with outgoing (incoming) spherical waves [[4]](#4). The method utilizes square-integrable functions to construct the trial set $\{\chi_\mu\}$, which is computationally advantageous.
 
