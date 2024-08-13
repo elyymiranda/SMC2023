@@ -136,17 +136,3 @@ echo "
 echo " Compilation done! You should now run the benchmark. "
 
 
-### Making scripts executable
-
-chmod +x 3dksmc
-chmod +x nucgms
-chmod +x offsmc
-chmod +x onksmc
-chmod +x parteA
-chmod +x parteB 
-chmod +x plotcross
-chmod +x plotped
-chmod +x pseudospec
-chmod +x runparteA
-
-
