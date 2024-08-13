@@ -1,0 +1,842 @@
+#!/bin/bash
+
+# This script organizes the .log information from EIGENVEC.LIS.
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 13/08/2024
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+# Set locale to American English to ensure correct decimal separator and keyboard layout
+export LC_ALL=en_US.UTF-8
+
+### Input important informations
+
+if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
+    echo "No input provided"
+    exit 1
+fi
+
+FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
+EIGENVEC='eigenvec-sim'
+GROUP=$(sed -n '2p' eigenvec-sim)   # Find the Symmetry group of the molecule
+LOG=$(grep -n "LOG" $1 | cut -d "=" -f 2 | sed 's/ //g')
+MIN_ENERG=$(grep "^MIN_ENERG" $1 | cut -d "=" -f 2 | sed 's/ //g')
+MAX_ENERG=$(grep "^MAX_ENERG" $1 | cut -d "=" -f 2 | sed 's/ //g')
+THRESHOLD=$(grep "^THRESHOLD" $1 | cut -d "=" -f 2 | sed 's/ //g')
+CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')
+PLOT=$(grep "^PLOT" $1 | cut -d "=" -f 2 | sed 's/ //g')
+
+PATH_TO_HCOMP="$SMC/hcomp/hcomp_v2.x"
+
+
+### Point group hcomp input production and running
+
+if [ $GROUP == CS ]; then
+    SYM=()
+    SYM+=(ap)
+    SYM+=(app)
+
+    l1=$(grep -n "BLOCK 1" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(grep -n "BLOCK 2" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2}-1)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/ap/list
+    rm $FOLDER/tmp_list
+
+    l1=$(grep -n "BLOCK 2" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(wc -l $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2})) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/app/list
+    rm $FOLDER/tmp_list
+
+
+    for sym in ${SYM[@]}; do
+
+echo "
+Starting with $sym irredutible representation of $GROUP point symmetry.
+"
+
+		# Obtain the energy information for parte A input
+
+		FINAL_LINE=$(wc -l < $FOLDER/$CSF/$sym/$sym-a)
+		ETARGT=$(awk -v VALUE=$(($FINAL_LINE-2)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a)
+
+		# Number of orbitals utilized in parteA
+
+		LINHA=$(grep -n "INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
+		
+        if [ $CSF = "SE" ]; then
+            NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a | awk '{ print $3 }')
+
+        else
+            NCONFS=$(grep "IND. SLATER DETERMINANTS IN DUBLET SPACE" $FOLDER/$CSF/$sym/$sym-a.dat | cut -d "=" -f 2 | sed 's/ //g')
+
+        fi
+#echo "Linha: $LINHA NCONFS: $NCONFS"
+
+
+        # hcomp input production and run 
+
+	    echo '#!/bin/csh
+
+set EXEC ='" $PATH_TO_HCOMP"'
+
+$EXEC << fim > hcomp.dat
+NCONFS = '"$NCONFS"  > $FOLDER/$CSF/$sym/hcomp
+
+        ILINE=$(grep -n "SQUARE" $FOLDER/$1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+        FLINE=$(grep -n "EUPPER" $FOLDER/$1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+        sed -n "$ILINE p" $FOLDER/$1 >> $FOLDER/$CSF/$sym/hcomp  
+        echo "ETARGT = $ETARGT" >> $FOLDER/$CSF/$sym/hcomp
+        sed -n "$(($ILINE + 1)),$FLINE p" $FOLDER/$1 >> $FOLDER/$CSF/$sym/hcomp
+        echo 'fim' >> $FOLDER/$CSF/$sym/hcomp
+
+        chmod +x $FOLDER/$CSF/$sym/hcomp
+        cd $FOLDER/$CSF/$sym/
+        ./hcomp
+
+        l1=$(grep -n "%INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+        NUMBER_OF_OCC_ORBITALS=$(sed -n "$((${l1}+1)) p" $FOLDER/$CSF/$sym/$sym-a | awk '{print $2}' | sed 's/[^0-9]*//g')
+
+        awk -v NUMOCC="$NUMBER_OF_OCC_ORBITALS" '$1 > NUMOCC { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
+
+        grep -n 'EIGENVALUE' $FOLDER/$CSF/$sym/EIGENVEC.LIS |  cut -d "=" -f2 | tr -d : | awk '{printf "%.2f\n",$1}' > $FOLDER/tmp   # Find the number of pseudostates and the line of occurence
+        LINES_STATE=$(grep -n 'EIGENVALUE' $FOLDER/$CSF/$sym/EIGENVEC.LIS | awk '{print $1}' | tr -d : | awk 'p{print $0-p}{p=$0}' | head -n 1)    # Find the number of lines between two states
+
+        NUMBER_STATES=$(wc -l $FOLDER/tmp | awk '{ print $1 }')
+
+        TOTAL_MVO=$(grep "TOTAL NUMBER OF MOS IN VARIATION SPACE" $FOLDER/$LOG | cut -d "=" -f 2 | sed 's/ //g')
+
+        awk -v TOT="$TOTAL_MVO" '$1 <= TOT { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
+
+        NUMBER_OF_ORBITALS=$(wc -l $FOLDER/$CSF/$sym/list | awk '{ print $1 }')
+        IMPLINES=$( echo "$NUMBER_OF_ORBITALS/8" | bc)
+
+        echo "The threshold is $THRESHOLD" > $FOLDER/$CSF/$sym/pseudo.info
+#	echo NUMBER_STATES = $NUMBER_STATES
+
+        for states in $(seq 1  ${NUMBER_STATES}); do
+                ENERGY=$( awk -v STATE=$states 'NR==STATE{ print; exit }' $FOLDER/tmp)
+ #               echo ENERGY: $ENERGY
+
+		if (( $( bc <<<"$ENERGY >= $MIN_ENERG && $ENERGY <= $MAX_ENERG") )); then
+                    cont=0
+                    echo "
+Pseudo state number $states
+Energy = $ENERGY eV
+CSF      Coeff.      Orb." >> $FOLDER/$CSF/$sym/pseudo.info
+                    for linha in $(seq 1 $IMPLINES); do
+                        for coluna in $(seq 1 8); do
+                            LINE=$(($LINES_STATE*$states-$LINES_STATE+1+$linha))
+                            COEF=$(awk -v lin=$LINE -v col=$coluna 'NR==lin{ print $col; exit }' $FOLDER/$CSF/$sym/EIGENVEC.LIS || echo 0)
+                            if (( $( bc <<<"${COEF#-} >= $THRESHOLD") )); then
+
+                                csf=$((8*$linha + $coluna - 8))
+                                CORORB=$(sed -n "$csf p" $FOLDER/$CSF/$sym/list)
+                                awk "BEGIN { 
+                                lin=$linha; col=$coluna; coef=$COEF; OCC_ORB=$CORORB
+                                CSF=8*lin + col - 8
+                                COR_ORB=OCC_ORB
+                                printf \"%-5.f %8.2f %8.f\n\", CSF, coef, COR_ORB
+                                }" >> $FOLDER/$CSF/$sym/pseudo.info
+                                cont=1
+                            fi
+
+                        done
+
+                    done
+
+                    if (( $cont == 0 )); then
+                        head -n -4 $FOLDER/$CSF/$sym/pseudo.info > tmp.txt && mv tmp.txt $FOLDER/$CSF/$sym/pseudo.info
+                    fi
+
+                fi
+
+        done
+
+        ## Build the electronic density for plotting if it was required
+
+        if [[ $PLOT == "YES" ]]; then     
+
+            # Initialize variables
+            state=""
+            output=""
+
+            # Process the input file line by line
+            while IFS= read -r line; do
+        
+                # Check for a pseudo state number
+                if [[ "$line" =~ "Pseudo state number" ]]; then
+                    state="pseudo${line##* }"
+                    output="$output\n$state"
+                elif [[ "$line" =~ ^[0-9] ]]; then
+                    # Extract coefficient and corresponding orbital
+                    coeff=$(echo $line | awk '{print $2}')
+                    orb=$(echo $line | awk '{print $3}')
+                    output="$output $orb $coeff"
+                fi
+
+            done < $FOLDER/$CSF/$sym/pseudo.info
+
+            # Remove leading newline
+            output=$(echo -e $output | sed '1d')
+
+            # Save the output to a file
+            echo -e "$output" > $FOLDER/$CSF/$sym/tmp
+
+            # Find the total number of basis
+            NBF=$(grep -n "NUMBER OF CARTESIAN GAUSSIAN BASIS FUNCTIONS =" $FOLDER/$LOG | cut -c52-)  # Find the total number of basis
+
+            # Find the last line of the states info
+            TOTAL_STATES=$(wc -l $FOLDER/$CSF/$sym/tmp | awk '{print $1}') # Find the last line of the states info
+
+            # Obtain TOTAL_STATES from the .log file (parteA - GAMESSMC) the import range of lines to modify
+            ILINE=$(grep -n "EIGENVECTORS" $FOLDER/$LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Initial line
+            FLINE=$(grep -n "...... END OF RHF CALCULATION ......" $FOLDER/$LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Final line
+            sed -n "$((${ILINE}+3)),$((${FLINE}-1)) p" $FOLDER/$LOG > $FOLDER/$CSF/$sym/tmp2  # Saving it
+        
+            for STATE in $(seq 1 $TOTAL_STATES); do
+
+	            SUM1=0
+            
+                # Count the number of columns in a specific line of a file
+	            TOTAL=$(awk -v line=$STATE '{if (NR==line) print NF;}' $FOLDER/$CSF/$sym/tmp)
+
+                # Create the vectors to store orbitals and coefficients
+	            ORB=()
+	            COEF=()
+	
+	            for EACH in $(seq 1 $((($TOTAL-1)/2))); do
+		
+		            ORB+=( $(awk -v row=$STATE -v col=$((2*$EACH)) '{if (NR==row) {print $col}}' $FOLDER/$CSF/$sym/tmp) )  # Build orbital vector
+		            COEF+=( $(awk -v row=$STATE -v col=$((2*$EACH+1)) '{if (NR==row) {print $col}}' $FOLDER/$CSF/$sym/tmp) )  # Build coefficient vector
+		            NAME=( $(awk -v row=$STATE '{if (NR==row) {print $1}}' $FOLDER/$CSF/$sym/tmp))
+	
+	            done
+
+        	    ELEMENT=0
+
+                for ORBITAL in ${ORB[@]}; do
+
+                    # Find the column in the .log file responsable to the required orbital using the rest of quocient
+		            ORBCOLUMN=$(($ORBITAL%5))
+
+                    # If the quocient of the orbital number by 5 is exact, then
+		            if [[ $ORBCOLUMN == 0 ]]; then    
+			            IORBLINE=$((($ORBITAL/5 -1)*($NBF+4)+4))  # We should find this line in .log  
+		                FORBLINE=$(($IORBLINE+$NBF-1))
+                        # Cut and save it
+			            sed -n "$IORBLINE,$FORBLINE p" $FOLDER/$CSF/$sym/tmp2 > $FOLDER/$CSF/$sym/${STATE}_$ORBITAL 
+
+                        # Take only the important column
+			            paste <(awk '{print $9}' $FOLDER/$CSF/$sym/${STATE}_$ORBITAL) > $FOLDER/$CSF/$sym/tmp3  
+			            mv $FOLDER/$CSF/$sym/tmp3 $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Rename it 
+
+			            perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
+			            ELEMENT=$(($ELEMENT+1))
+
+                    # If the quocient of the orbital number by 5 is not exact, then
+                    else  
+			            IORBLINE=$(($ORBITAL/5*($NBF+4)+4))  # We should find this line in .log 
+			            FORBLINE=$(($IORBLINE+$NBF-1))
+			            sed -n "$IORBLINE,$FORBLINE p" $FOLDER/$CSF/$sym/tmp2 > $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Cut and save it
+
+			            COLUMN=$(($ORBCOLUMN+4))  # We should translate it in order to obtain the right column
+			            paste <(awk -v COLUMN=$COLUMN '{print $COLUMN}' $FOLDER/$CSF/$sym/${STATE}_$ORBITAL) > $FOLDER/$CSF/$sym/tmp3  # Take only the important column
+			            mv $FOLDER/$CSF/$sym/tmp3 $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Rename it
+
+			            perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
+			            ELEMENT=$(($ELEMENT+1))
+		            fi
+
+                done
+
+
+                # Find the coefficients in input and solve the Eq. to obtain the value to fix the probabilities
+
+                for COEF in ${COEF[@]}; do
+                    SUM2=$(echo "scale=6; $COEF" | bc)
+                    SUM2=$(echo "scale=6; $SUM2 * $SUM2" | bc)
+                    SUM1=$(echo "scale=6; $SUM1 + $SUM2" | bc)
+                done
+	
+	            NEWCOEFF=$(echo "sqrt($SUM1)" | bc -l)  # Second part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
+	            NEWCOEFF=$(echo "1/$NEWCOEFF" | bc -l)  # Third part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
+
+                # Operate the date and save the results
+
+	            perl -i -lpe '$_=$_'*$NEWCOEFF $FOLDER/$CSF/$sym/${STATE}_*  # Multiply the coef. by x to rebuild normalization
+
+	            paste $FOLDER/$CSF/$sym/${STATE}_* | perl -MList::Util=sum -lane 'print sum(@F)' > $FOLDER/$CSF/$sym/${STATE}  # Sum all the renormalized orbitals to obtain the final state
+	            LC_ALL="C" awk '{printf("%.6f\n", $1)}' $FOLDER/$CSF/$sym/${STATE} > $FOLDER/$CSF/$sym/tmp4   # Just adjusting the number of decimal numbers
+	            LC_ALL="C" awk '{printf "%9s\n", $1}' $FOLDER/$CSF/$sym/tmp4 > $FOLDER/$CSF/$sym/${STATE}  #
+		
+                # Rebuild the input e save it.
+
+        	    sed '/EIGENVECTORS/q' $FOLDER/$LOG > $FOLDER/$CSF/$sym/${NAME}.orb
+	            echo '          ------------
+' >> $FOLDER/$CSF/$sym/${NAME}.orb
+
+	            sed '1,3d' $FOLDER/$CSF/$sym/tmp2 > $FOLDER/$CSF/$sym/tmp5
+	            sed -i "1,$NBF ! d" $FOLDER/$CSF/$sym/tmp5
+	
+	            > $FOLDER/$CSF/$sym/tmp6
+
+	            for line in $(seq 1 $NBF); do
+        	        sed "${line}q;d" $FOLDER/$CSF/$sym/tmp5 | cut -c1-14 >> $FOLDER/$CSF/$sym/tmp6
+	            done
+
+	            paste $FOLDER/$CSF/$sym/tmp6 $FOLDER/$CSF/$sym/${STATE} > $FOLDER/$CSF/$sym/tmp7
+      
+      	        sed -i '1i\                    1' $FOLDER/$CSF/$sym/tmp7
+                sed -i '2i\                  0.0000' $FOLDER/$CSF/$sym/tmp7
+                sed -i '3i\                   A' $FOLDER/$CSF/$sym/tmp7
+	            cat $FOLDER/$CSF/$sym/tmp7 >> $FOLDER/$CSF/$sym/${NAME}.orb
+
+	            sed '/...... END OF RHF CALCULATION ....../,$!d' $FOLDER/$LOG >> $FOLDER/$CSF/$sym/${NAME}.orb
+
+	            rm $FOLDER/$CSF/$sym/${STATE}_* $FOLDER/$CSF/$sym/${STATE}
+
+            done
+
+            rm $FOLDER/$CSF/$sym/tmp*  # Remove temporary file 
+
+        fi
+
+    done
+
+elif [ $GROUP == C2V ]; then
+    SYM=()
+    SYM+=(a2)
+    SYM+=(b1)
+    SYM+=(b2)
+    SYM+=(a1)
+
+    l1=$(grep -n "BLOCK 1" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(grep -n "BLOCK 2" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2}-1)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/a1/list
+    rm $FOLDER/tmp_list
+
+    l1=$(grep -n "BLOCK 2" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(grep -n "BLOCK 3" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2}-1)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/b1/list
+    rm $FOLDER/tmp_list
+
+    l1=$(grep -n "BLOCK 3" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(grep -n "BLOCK 4" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2}-1)) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/b2/list
+    rm $FOLDER/tmp_list
+
+
+    l1=$(grep -n "BLOCK 4" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    l2=$(wc -l $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    sed -n "$((${l1}+1)),$((${l2})) p" $FOLDER/eigenvec-sim > $FOLDER/tmp_list
+    tr ' ' '\n' < $FOLDER/tmp_list > $FOLDER/$CSF/a2/list
+    rm $FOLDER/tmp_list
+
+
+    for sym in ${SYM[@]}; do
+
+        echo "
+        Starting with $sym irredutible representation of $GROUP point symmetry.
+        "
+
+		# Obtain the energy information for parte A input
+
+		FINAL_LINE=$(wc -l < $FOLDER/$CSF/$sym/$sym-a)
+		ETARGT=$(awk -v VALUE=$(($FINAL_LINE-2)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a)
+
+		# Number of orbitals utilized in parteA
+
+		LINHA=$(grep -n "INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
+
+        if [ $CSF = "SE" ]; then
+            NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/$sym/$sym-a | awk '{ print $3 }')
+
+        else
+            NCONFS=$(grep "IND. SLATER DETERMINANTS IN DUBLET SPACE" $FOLDER/$CSF/$sym/$sym-a.dat | cut -d "=" -f 2 | sed 's/ //g')
+
+        fi
+
+        # hcomp input production and run 
+
+		echo '#!/bin/csh
+
+set EXEC ='" $PATH_TO_HCOMP"'
+
+$EXEC << fim > hcomp.dat
+NCONFS = '"$NCONFS"  > $FOLDER/$CSF/$sym/hcomp
+
+        ILINE=$(grep -n "SQUARE" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+        FLINE=$(grep -n "EUPPER" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+        sed -n "$ILINE p" $1 >> $FOLDER/$CSF/$sym/hcomp  
+        echo "ETARGT = $ETARGT" >> $FOLDER/$CSF/$sym/hcomp
+        sed -n "$(($ILINE + 1)),$FLINE p" $1 >> $FOLDER/$CSF/$sym/hcomp
+        echo 'fim' >> $FOLDER/$CSF/$sym/hcomp
+
+        chmod +x $FOLDER/$CSF/$sym/hcomp
+        cd $FOLDER/$CSF/$sym/
+        ./hcomp
+
+        l1=$(grep -n "%INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+        NUMBER_OF_OCC_ORBITALS=$(sed -n "$((${l1}+1)) p" $FOLDER/$CSF/$sym/$sym-a | awk '{print $2}' | sed 's/[^0-9]*//g')
+
+        awk -v NUMOCC="$NUMBER_OF_OCC_ORBITALS" '$1 > NUMOCC { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
+
+        grep -n 'EIGENVALUE' $FOLDER/$CSF/$sym/EIGENVEC.LIS |  cut -d "=" -f2 | tr -d : | awk '{printf "%.2f\n",$1}' > $FOLDER/tmp   # Find the number of pseudostates and the line of occurence
+        LINES_STATE=$(grep -n 'EIGENVALUE' $FOLDER/$CSF/$sym/EIGENVEC.LIS | awk '{print $1}' | tr -d : | awk 'p{print $0-p}{p=$0}' | head -n 1)    # Find the number of lines between two states
+
+        NUMBER_STATES=$(wc -l $FOLDER/tmp | awk '{ print $1 }')
+
+        TOTAL_MVO=$(grep "TOTAL NUMBER OF MOS IN VARIATION SPACE" $FOLDER/$LOG | cut -d "=" -f 2 | sed 's/ //g')
+
+        awk -v TOT="$TOTAL_MVO" '$1 <= TOT { print $1 }' $FOLDER/$CSF/$sym/list > $FOLDER/$CSF/$sym/list_tmp && mv $FOLDER/$CSF/$sym/list_tmp $FOLDER/$CSF/$sym/list
+
+        NUMBER_OF_ORBITALS=$(wc -l $FOLDER/$CSF/$sym/list | awk '{ print $1 }')
+        IMPLINES=$( echo "$NUMBER_OF_ORBITALS/8" | bc)
+
+        echo "The threshold is $THRESHOLD" > $FOLDER/$CSF/$sym/pseudo.info
+#       echo NUMBER_STATES = $NUMBER_STATES
+
+        for states in $(seq 1  ${NUMBER_STATES}); do
+                ENERGY=$( awk -v STATE=$states 'NR==STATE{ print; exit }' $FOLDER/tmp)
+#                echo ENERGY: $ENERGY
+
+                if (( $( bc <<<"$ENERGY >= $MIN_ENERG && $ENERGY <= $MAX_ENERG") )); then
+                    cont=0
+                    echo "
+Pseudo state number $states
+Energy = $ENERGY eV
+CSF      Coeff.      Orb." >> $FOLDER/$CSF/$sym/pseudo.info
+                    for linha in $(seq 1 $IMPLINES); do
+                        for coluna in $(seq 1 8); do
+                            LINE=$(($LINES_STATE*$states-$LINES_STATE+1+$linha))
+                            COEF=$(awk -v lin=$LINE -v col=$coluna 'NR==lin{ print $col; exit }' $FOLDER/$CSF/$sym/EIGENVEC.LIS || echo 0)
+                            if (( $( bc <<<"${COEF#-} >= $THRESHOLD") )); then
+
+                                csf=$((8*$linha + $coluna - 8))
+                                CORORB=$(sed -n "$csf p" $FOLDER/$CSF/$sym/list)
+                                awk "BEGIN { 
+                                lin=$linha; col=$coluna; coef=$COEF; OCC_ORB=$CORORB
+                                CSF=8*lin + col - 8
+                                COR_ORB=OCC_ORB
+                                printf \"%-5.f %8.2f %8.f\n\", CSF, coef, COR_ORB
+                                }" >> $FOLDER/$CSF/$sym/pseudo.info
+                                cont=1
+                            fi
+
+                        done
+
+                    done
+
+                    if (( $cont == 0 )); then
+                        head -n -4 $FOLDER/$CSF/$sym/pseudo.info > tmp.txt && mv tmp.txt $FOLDER/$CSF/$sym/pseudo.info
+                    fi
+
+                fi
+
+        done
+
+    ## Build the electronic density for plotting if it was required
+
+    if [[ $PLOT == "YES" ]]; then     
+
+        # Initialize variables
+        state=""
+        output=""
+
+        # Process the input file line by line
+        while IFS= read -r line; do
+        
+            # Check for a pseudo state number
+            if [[ "$line" =~ "Pseudo state number" ]]; then
+                state="pseudo${line##* }"
+                output="$output\n$state"
+            elif [[ "$line" =~ ^[0-9] ]]; then
+                # Extract coefficient and corresponding orbital
+                coeff=$(echo $line | awk '{print $2}')
+                orb=$(echo $line | awk '{print $3}')
+                output="$output $orb $coeff"
+            fi
+
+        done < $FOLDER/$CSF/$sym/pseudo.info
+
+        # Remove leading newline
+        output=$(echo -e $output | sed '1d')
+
+        # Save the output to a file
+        echo -e "$output" > $FOLDER/$CSF/$sym/tmp
+
+        # Find the total number of basis
+        NBF=$(grep -n "NUMBER OF CARTESIAN GAUSSIAN BASIS FUNCTIONS =" $FOLDER/$LOG | cut -c52-)  # Find the total number of basis
+
+        # Find the last line of the states info
+        TOTAL_STATES=$(wc -l $FOLDER/$CSF/$sym/tmp | awk '{print $1}') # Find the last line of the states info
+
+        # Obtain TOTAL_STATES from the .log file (parteA - GAMESSMC) the import range of lines to modify
+        ILINE=$(grep -n "EIGENVECTORS" $FOLDER/$LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Initial line
+        FLINE=$(grep -n "...... END OF RHF CALCULATION ......" $FOLDER/$LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Final line
+        sed -n "$((${ILINE}+3)),$((${FLINE}-1)) p" $FOLDER/$LOG > $FOLDER/$CSF/$sym/tmp2  # Saving it
+        
+        for STATE in $(seq 1 $TOTAL_STATES); do
+
+	        SUM1=0
+            
+            # Count the number of columns in a specific line of a file
+	        TOTAL=$(awk -v line=$STATE '{if (NR==line) print NF;}' $FOLDER/$CSF/$sym/tmp)
+
+            # Create the vectors to store orbitals and coefficients
+	        ORB=()
+	        COEF=()
+	
+	        for EACH in $(seq 1 $((($TOTAL-1)/2))); do
+		
+		        ORB+=( $(awk -v row=$STATE -v col=$((2*$EACH)) '{if (NR==row) {print $col}}' $FOLDER/$CSF/$sym/tmp) )  # Build orbital vector
+		        COEF+=( $(awk -v row=$STATE -v col=$((2*$EACH+1)) '{if (NR==row) {print $col}}' $FOLDER/$CSF/$sym/tmp) )  # Build coefficient vector
+		        NAME=( $(awk -v row=$STATE '{if (NR==row) {print $1}}' $FOLDER/$CSF/$sym/tmp))
+	
+	        done
+
+        	ELEMENT=0
+
+            for ORBITAL in ${ORB[@]}; do
+
+                # Find the column in the .log file responsable to the required orbital using the rest of quocient
+		        ORBCOLUMN=$(($ORBITAL%5))
+
+                # If the quocient of the orbital number by 5 is exact, then
+		        if [[ $ORBCOLUMN == 0 ]]; then    
+			        IORBLINE=$((($ORBITAL/5 -1)*($NBF+4)+4))  # We should find this line in .log  
+		            FORBLINE=$(($IORBLINE+$NBF-1))
+                    # Cut and save it
+			        sed -n "$IORBLINE,$FORBLINE p" $FOLDER/$CSF/$sym/tmp2 > $FOLDER/$CSF/$sym/${STATE}_$ORBITAL 
+
+                    # Take only the important column
+			        paste <(awk '{print $9}' $FOLDER/$CSF/$sym/${STATE}_$ORBITAL) > $FOLDER/$CSF/$sym/tmp3  
+			        mv $FOLDER/$CSF/$sym/tmp3 $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Rename it 
+
+			        perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
+			        ELEMENT=$(($ELEMENT+1))
+
+                # If the quocient of the orbital number by 5 is not exact, then
+                else  
+			        IORBLINE=$(($ORBITAL/5*($NBF+4)+4))  # We should find this line in .log 
+			        FORBLINE=$(($IORBLINE+$NBF-1))
+			        sed -n "$IORBLINE,$FORBLINE p" $FOLDER/$CSF/$sym/tmp2 > $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Cut and save it
+
+			        COLUMN=$(($ORBCOLUMN+4))  # We should translate it in order to obtain the right column
+			        paste <(awk -v COLUMN=$COLUMN '{print $COLUMN}' $FOLDER/$CSF/$sym/${STATE}_$ORBITAL) > $FOLDER/$CSF/$sym/tmp3  # Take only the important column
+			        mv $FOLDER/$CSF/$sym/tmp3 $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Rename it
+
+			        perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/$CSF/$sym/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
+			        ELEMENT=$(($ELEMENT+1))
+		        fi
+
+            done
+
+
+            # Find the coefficients in input and solve the Eq. to obtain the value to fix the probabilities
+
+            for COEF in ${COEF[@]}; do
+                SUM2=$(echo "scale=6; $COEF" | bc)
+                SUM2=$(echo "scale=6; $SUM2 * $SUM2" | bc)
+                SUM1=$(echo "scale=6; $SUM1 + $SUM2" | bc)
+            done
+	
+	        NEWCOEFF=$(echo "sqrt($SUM1)" | bc -l)  # Second part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
+	        NEWCOEFF=$(echo "1/$NEWCOEFF" | bc -l)  # Third part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
+
+            # Operate the date and save the results
+
+	        perl -i -lpe '$_=$_'*$NEWCOEFF $FOLDER/$CSF/$sym/${STATE}_*  # Multiply the coef. by x to rebuild normalization
+
+	        paste $FOLDER/$CSF/$sym/${STATE}_* | perl -MList::Util=sum -lane 'print sum(@F)' > $FOLDER/$CSF/$sym/${STATE}  # Sum all the renormalized orbitals to obtain the final state
+	        LC_ALL="C" awk '{printf("%.6f\n", $1)}' $FOLDER/$CSF/$sym/${STATE} > $FOLDER/$CSF/$sym/tmp4   # Just adjusting the number of decimal numbers
+	        LC_ALL="C" awk '{printf "%9s\n", $1}' $FOLDER/$CSF/$sym/tmp4 > $FOLDER/$CSF/$sym/${STATE}  #
+		
+            # Rebuild the input e save it.
+
+        	sed '/EIGENVECTORS/q' $FOLDER/$LOG > $FOLDER/$CSF/$sym/${NAME}.orb
+	        echo '          ------------
+' >> $FOLDER/$CSF/$sym/${NAME}.orb
+
+	        sed '1,3d' $FOLDER/$CSF/$sym/tmp2 > $FOLDER/$CSF/$sym/tmp5
+	        sed -i "1,$NBF ! d" $FOLDER/$CSF/$sym/tmp5
+	
+	        > $FOLDER/$CSF/$sym/tmp6
+
+	        for line in $(seq 1 $NBF); do
+        	    sed "${line}q;d" $FOLDER/$CSF/$sym/tmp5 | cut -c1-14 >> $FOLDER/$CSF/$sym/tmp6
+	        done
+
+	        paste $FOLDER/$CSF/$sym/tmp6 $FOLDER/$CSF/$sym/${STATE} > $FOLDER/$CSF/$sym/tmp7
+      
+      	    sed -i '1i\                    1' $FOLDER/$CSF/$sym/tmp7
+            sed -i '2i\                  0.0000' $FOLDER/$CSF/$sym/tmp7
+            sed -i '3i\                   A' $FOLDER/$CSF/$sym/tmp7
+	        cat $FOLDER/$CSF/$sym/tmp7 >> $FOLDER/$CSF/$sym/${NAME}.orb
+
+	        sed '/...... END OF RHF CALCULATION ....../,$!d' $FOLDER/$LOG >> $FOLDER/$CSF/$sym/${NAME}.orb
+
+	        rm $FOLDER/$CSF/$sym/${STATE}_* $FOLDER/$CSF/$sym/${STATE}
+
+        done
+
+        rm $FOLDER/$CSF/$sym/tmp*  # Remove temporary file 
+
+    fi
+
+    cd $FOLDER
+
+    done
+
+elif [ $GROUP == C1 ]; then
+
+	# Obtain the energy information for parte A input
+
+	FINAL_LINE=$(wc -l < $FOLDER/$CSF/a)
+	ETARGT=$(awk -v VALUE=$(($FINAL_LINE-2)) 'FNR==VALUE' $FOLDER/$CSF/a)
+
+	# Number of orbitals utilized in parteA
+
+	LINHA=$(grep -n "INI_WAVEFUN_BLOCK" $FOLDER/$CSF/a | head -1 | awk '{print $1}' | sed 's/[^0-9]*//g' )
+
+    if [ $CSF = "SE" ]; then
+	    NCONFS=$(awk -v VALUE=$(($LINHA+1)) 'FNR==VALUE' $FOLDER/$CSF/a | awk '{ print $3 }')
+
+    else
+        NCONFS=$(grep "IND. SLATER DETERMINANTS IN DUBLET SPACE" $FOLDER/$CSF/a.dat | cut -d "=" -f 2 | sed 's/ //g')
+
+    fi
+
+    # hcomp input production and run 
+
+	echo '#!/bin/csh
+
+set EXEC ='" $PATH_TO_HCOMP"'
+
+$EXEC << fim > hcomp.dat
+NCONFS = '"$NCONFS"  > $FOLDER/$CSF/hcomp
+
+    ILINE=$(grep -n "SQUARE" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+    FLINE=$(grep -n "EUPPER" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+    sed -n "$ILINE p" $1 >> $FOLDER/$CSF/hcomp  
+    echo "ETARGT = $ETARGT" >> $FOLDER/$CSF/hcomp
+    sed -n "$(($ILINE + 1)),$FLINE p" $1 >> $FOLDER/$CSF/hcomp
+    echo 'fim' >> $FOLDER/$CSF/hcomp
+
+    chmod +x $FOLDER/$CSF/hcomp
+    cd $FOLDER/$CSF/
+    ./hcomp
+
+    # Begin the analysis from EIGENVEC.SIM
+
+    NUMBER_OF_ORBITALS=$(grep -n "GENERATING" $FOLDER/$LOG | awk '{print $3}' | sed 's/[^0-9]*//g')
+
+    l1=$(grep -n "%INI_WAVEFUN_BLOCK" $FOLDER/$CSF/a | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
+    NUMBER_OF_OCC_ORBITALS=$(sed -n "$((${l1}+1)) p" $FOLDER/$CSF/a | awk '{print $2}' | sed 's/[^0-9]*//g')
+
+    IMPLINES=$( echo "$NUMBER_OF_ORBITALS/8" | bc)
+
+    grep -n 'EIGENVALUE' $FOLDER/$CSF/EIGENVEC.LIS |  cut -d "=" -f2 | tr -d : | awk '{printf "%.2f\n",$1}' > $FOLDER/$CSF/tmp   # Find the number of pseudostates and the line of occurence
+    LINES_STATE=$(grep -n 'EIGENVALUE' $FOLDER/$CSF/EIGENVEC.LIS | awk '{print $1}' | tr -d : | awk 'p{print $0-p}{p=$0}' | head -n 1)    # Find the number of lines between two states
+
+    NUMBER_STATES=$(wc -l $FOLDER/$CSF/tmp | awk '{ print $1 }')
+
+    echo "The threshold is $THRESHOLD" > $FOLDER/$CSF/pseudo.info
+
+    for states in $(seq 1  ${NUMBER_STATES}); do
+        ENERGY=$( awk -v STATE=$states 'NR==STATE{ print; exit }' $FOLDER/$CSF/tmp)
+
+        if (( $( bc <<<"$ENERGY >= $MIN_ENERG && $ENERGY <= $MAX_ENERG") )); then
+            cont=0
+            echo "
+Pseudo state number $states
+Energy = $ENERGY eV
+CSF      Coeff.      Orb." >> $FOLDER/$CSF/pseudo.info
+
+            for linha in $(seq 1 $IMPLINES); do
+
+                for coluna in $(seq 1 8); do
+                    LINE=$(($LINES_STATE*$states-$LINES_STATE+1+$linha))
+                    COEF=$(awk -v lin=$LINE -v col=$coluna 'NR==lin{ print $col; exit }' $FOLDER/$CSF/EIGENVEC.LIS || echo 0)
+
+                        if (( $( bc <<<"${COEF#-} >= $THRESHOLD") )); then
+                            awk "BEGIN { 
+                            lin=$linha; col=$coluna; coef=$COEF; OCC_ORB=$NUMBER_OF_OCC_ORBITALS
+                            CSF=8*lin + col - 8
+                            COR_ORB=8*lin + col - 8 + OCC_ORB
+                            printf \"%-5.f %8.2f %8.f\n\", CSF, coef, COR_ORB
+                            }" >> $FOLDER/$CSF/pseudo.info
+                            cont=1
+                        fi
+
+                done
+
+            done
+
+            if (( $cont == 0 )); then
+                head -n -4 pseudo.info > tmp.txt && mv tmp.txt pseudo.info
+            fi
+
+        fi
+
+    done
+
+    ## Build the electronic density for plotting if it was required
+
+    if [[ $PLOT == "YES" ]]; then     
+
+        # Initialize variables
+        state=""
+        output=""
+
+        # Process the input file line by line
+        while IFS= read -r line; do
+        
+            # Check for a pseudo state number
+            if [[ "$line" =~ "Pseudo state number" ]]; then
+                state="pseudo${line##* }"
+                output="$output\n$state"
+            elif [[ "$line" =~ ^[0-9] ]]; then
+                # Extract coefficient and corresponding orbital
+                coeff=$(echo $line | awk '{print $2}')
+                orb=$(echo $line | awk '{print $3}')
+                output="$output $orb $coeff"
+            fi
+
+        done < $FOLDER/$CSF/pseudo.info
+
+        # Remove leading newline
+        output=$(echo -e $output | sed '1d')
+
+        # Save the output to a file
+        echo -e "$output" > $FOLDER/$CSF/tmp
+
+        # Find the total number of basis
+        NBF=$(grep -n "NUMBER OF CARTESIAN GAUSSIAN BASIS FUNCTIONS =" $FOLDER/$LOG | cut -c52-)  # Find the total number of basis
+
+        # Find the last line of the states info
+        TOTAL_STATES=$(wc -l $FOLDER/$CSF/tmp | awk '{print $1}') # Find the last line of the states info
+
+        # Obtain TOTAL_STATES from the .log file (parteA - GAMESSMC) the import range of lines to modify
+        ILINE=$(grep -n "EIGENVECTORS" $FOLDER/$LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Initial line
+        FLINE=$(grep -n "...... END OF RHF CALCULATION ......" $FOLDER/$LOG | awk '{print $1}' | sed 's/[^0-9]*//g')  # Final line
+        sed -n "$((${ILINE}+3)),$((${FLINE}-1)) p" $FOLDER/$LOG > $FOLDER/$CSF/tmp2  # Saving it
+        
+        for STATE in $(seq 1 $TOTAL_STATES); do
+
+	        SUM1=0
+            
+            # Count the number of columns in a specific line of a file
+	        TOTAL=$(awk -v line=$STATE '{if (NR==line) print NF;}' $FOLDER/$CSF/tmp)
+
+            # Create the vectors to store orbitals and coefficients
+	        ORB=()
+	        COEF=()
+	
+	        for EACH in $(seq 1 $((($TOTAL-1)/2))); do
+		
+		        ORB+=( $(awk -v row=$STATE -v col=$((2*$EACH)) '{if (NR==row) {print $col}}' $FOLDER/$CSF/tmp) )  # Build orbital vector
+		        COEF+=( $(awk -v row=$STATE -v col=$((2*$EACH+1)) '{if (NR==row) {print $col}}' $FOLDER/$CSF/tmp) )  # Build coefficient vector
+		        NAME=( $(awk -v row=$STATE '{if (NR==row) {print $1}}' $FOLDER/$CSF/tmp))
+	
+	        done
+
+
+            ELEMENT=0
+
+            for ORBITAL in ${ORB[@]}; do
+
+                # Find the column in the .log file responsable to the required orbital using the rest of quocient
+		        ORBCOLUMN=$(($ORBITAL%5))
+
+                # If the quocient of the orbital number by 5 is exact, then
+		        if [[ $ORBCOLUMN == 0 ]]; then    
+			        IORBLINE=$((($ORBITAL/5 -1)*($NBF+4)+4))  # We should find this line in .log  
+		            FORBLINE=$(($IORBLINE+$NBF-1))
+                    # Cut and save it
+			        sed -n "$IORBLINE,$FORBLINE p" $FOLDER/$CSF/tmp2 > $FOLDER/$CSF/${STATE}_$ORBITAL 
+
+                    # Take only the important column
+			        paste <(awk '{print $9}' $FOLDER/$CSF/${STATE}_$ORBITAL) > $FOLDER/$CSF/tmp3  
+			        mv $FOLDER/$CSF/tmp3 $FOLDER/$CSF/${STATE}_$ORBITAL  # Rename it 
+
+			        perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/$CSF/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
+			        ELEMENT=$(($ELEMENT+1))
+
+                # If the quocient of the orbital number by 5 is not exact, then
+                else  
+			        IORBLINE=$(($ORBITAL/5*($NBF+4)+4))  # We should find this line in .log 
+			        FORBLINE=$(($IORBLINE+$NBF-1))
+			        sed -n "$IORBLINE,$FORBLINE p" $FOLDER/$CSF/tmp2 > $FOLDER/$CSF/${STATE}_$ORBITAL  # Cut and save it
+
+			        COLUMN=$(($ORBCOLUMN+4))  # We should translate it in order to obtain the right column
+			        paste <(awk -v COLUMN=$COLUMN '{print $COLUMN}' $FOLDER/$CSF/${STATE}_$ORBITAL) > $FOLDER/$CSF/tmp3  # Take only the important column
+			        mv $FOLDER/$CSF/tmp3 $FOLDER/$CSF/${STATE}_$ORBITAL  # Rename it
+
+			        perl -i -lpe '$_=$_'*${COEF[$ELEMENT]} $FOLDER/$CSF/${STATE}_$ORBITAL  # Multiply the coef. by the weight choosen
+			        ELEMENT=$(($ELEMENT+1))
+		        fi
+
+            done
+
+
+            # Find the coefficients in input and solve the Eq. to obtain the value to fix the probabilities
+
+            for COEF in ${COEF[@]}; do
+                SUM2=$(echo "scale=6; $COEF" | bc)
+                SUM2=$(echo "scale=6; $SUM2 * $SUM2" | bc)
+                SUM1=$(echo "scale=6; $SUM1 + $SUM2" | bc)
+            done
+	
+	        NEWCOEFF=$(echo "sqrt($SUM1)" | bc -l)  # Second part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
+	        NEWCOEFF=$(echo "1/$NEWCOEFF" | bc -l)  # Third part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
+
+            # Operate the date and save the results
+
+	        perl -i -lpe '$_=$_'*$NEWCOEFF $FOLDER/$CSF/${STATE}_*  # Multiply the coef. by x to rebuild normalization
+
+	        paste $FOLDER/$CSF/${STATE}_* | perl -MList::Util=sum -lane 'print sum(@F)' > $FOLDER/$CSF/${STATE}  # Sum all the renormalized orbitals to obtain the final state
+	        LC_ALL="C" awk '{printf("%.6f\n", $1)}' $FOLDER/$CSF/${STATE} > $FOLDER/$CSF/tmp4   # Just adjusting the number of decimal numbers
+	        LC_ALL="C" awk '{printf "%9s\n", $1}' $FOLDER/$CSF/tmp4 > $FOLDER/$CSF/${STATE}  #
+		
+            # Rebuild the input e save it.
+
+        	sed '/EIGENVECTORS/q' $FOLDER/$LOG > $FOLDER/$CSF/${NAME}.orb
+	        echo '          ------------
+' >> $FOLDER/$CSF/${NAME}.orb
+
+	        sed '1,3d' $FOLDER/$CSF/tmp2 > $FOLDER/$CSF/tmp5
+	        sed -i "1,$NBF ! d" $FOLDER/$CSF/tmp5
+	
+	        > $FOLDER/$CSF/tmp6
+
+	        for line in $(seq 1 $NBF); do
+        	    sed "${line}q;d" $FOLDER/$CSF/tmp5 | cut -c1-14 >> $FOLDER/$CSF/tmp6
+	        done
+
+	        paste $FOLDER/$CSF/tmp6 $FOLDER/$CSF/${STATE} > $FOLDER/$CSF/tmp7
+      
+      	    sed -i '1i\                    1' $FOLDER/$CSF/tmp7
+            sed -i '2i\                  0.0000' $FOLDER/$CSF/tmp7
+            sed -i '3i\                   A' $FOLDER/$CSF/tmp7
+	        cat $FOLDER/$CSF/tmp7 >> $FOLDER/$CSF/${NAME}.orb
+
+	        sed '/...... END OF RHF CALCULATION ....../,$!d' $FOLDER/$LOG >> $FOLDER/$CSF/${NAME}.orb
+
+	        rm $FOLDER/$CSF/${STATE}_* $FOLDER/$CSF/${STATE}
+
+        done
+
+        rm $FOLDER/$CSF/tmp*  # Remove temporary file 
+
+    fi
+
+else
+
+        echo "The analysis is not working yet for $GROUP."
+        break
+
+fi

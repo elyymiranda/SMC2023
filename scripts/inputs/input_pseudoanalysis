@@ -4,10 +4,7 @@
 
 # DO NOT LEAVE ANY FREE SPACE AFTER THE ARGUMENT. REMEMBER TO LEAVE THE SPACES BETWEEN =
 
-# nucgms .log file
-LOG    = res-bhs.log
-
-# CSF's construction type
+# CSF's construction type 
 CSF    = SE
 
 # Pseudo-spectrum generation (hcomp)
@@ -22,3 +19,6 @@ EUPPER = 20.0
 MIN_ENERG =-3.0
 MAX_ENERG = 10
 THRESHOLD = 0.3
+
+# Plot pseudo-states electron density (YES; NO )
+PLOT = YES
