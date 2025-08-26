@@ -72,7 +72,7 @@ vi) sudo updatedb
 i) Você precisa achar onde estão duas bibliotecas importantes: libf77blas.so.3, libg2c
 Eu recomendo instalar o locate através do comando
 	sudo apt install locate
-ii) Após encontrar a pasta de instalação, pasta utilizar o comendo export:
+ii) Após encontrar a pasta de instalação, basta utilizar o comendo export:
 	LD_LIBRARY_PATH=/path/to/libf77blas.so.3/:$LD_LIBRARY_PATH
 	LD_LIBRARY_PATH=/path/to/libg2c/:$LD_LIBRARY_PATH
 

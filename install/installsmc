@@ -15,7 +15,7 @@ BIB2=/opt/intel/oneapi/mkl/2023.0.0/lib/intel64/
 
 ### Decompression of files
 
-tar -vxf SMC2023_v6.tar 2>/dev/null
+tar -vxf SMC2023_v7.tar 2>/dev/null
 
 tar -vxf a2018_v5.tar 2>/dev/null
 rm a2018_v5.tar
@@ -129,6 +129,8 @@ echo " Running Simetrias code "
 cd $FOLDER/simetrias
 ifort -O2 -traceback -align -c simetrias.f
 ifort -O2 -traceback -align -o simetrias.x simetrias.o
+ifort -O2 -traceback -align -c simetrias_no_energy.f
+ifort -O2 -traceback -align -o simetrias_no_energy.x simetrias_no_energy.o
 echo "
 
 "
