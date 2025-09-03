@@ -51,68 +51,51 @@ sudo chmod +x ifort_instaler.sh
 
 **Note:** After this, you don’t need to call the library every time you use `ifort`.
 
-
 ---
 
-
 ### 2. gcc
-
 
 **Installation:**
 ```bash
 sudo apt install gcc
 ```
 
-
 ---
-
 
 ### 3. Intel Math Kernel Library (MKL)
 
-
 - Download: [Intel OneMKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html)
-
 
 **Installation Steps:**
 ```bash
 # Navigate to the download folder:
 cd /path/to/folder
 
-
 # Make the file executable:
 sudo chmod +x mkl_installer.sh
-
 
 # Execute the installer:
 ./mkl_installer.sh
 
-
 # Follow the installation instructions (pay attention to the chosen installation path)
-
 
 # Add the following line to your ~/.bashrc:
 . /path/to/oneapi/setvars.sh
 ```
 **Note:** After this, you don’t need to call the library every time you use `ifort`.
 
-
 ---
 
-
 ### 4. csh
-
 
 **Installation:**
 ```bash
 sudo apt install csh
 ```
 
-
 ---
 
-
 ### 5. libatlas-base-dev
-
 
 **Installation:**
 ```bash
@@ -120,13 +103,79 @@ sudo apt-get update
 sudo apt-get install libatlas-base-dev
 ```
 
-
 ---
 
 
 ### 6. libg2c
+- Download: [libg2c RPM](https://rpmfind.net/linux/rpm2html/search.php?query=libg2c.so.0()(64bit))
 
 
+**Installation Steps:**
+```bash
+# Navigate to the download folder:
+cd /path/to/folder
+
+# Add repository:
+sudo add-apt-repository universe
+
+# Update:
+sudo apt-get update
+
+# Install alien:
+sudo apt-get install alien
+
+# Convert and install RPM:
+sudo alien -i compat-libf2c-34-3.4.6-32.el7.x86_64.rpm
+
+# Update database:
+sudo updatedb
+```
+
+---
+
+### 7. Export Libraries
+
+You need to locate two important libraries: `libf77blas.so.3` and `libg2c`.
+
+**Steps:**
+```bash
+# Install locate if not installed
+sudo apt install locate
+
+# Locate libraries
+locate libf77blas.so.3
+locate libg2c
+
+# Export paths
+export LD_LIBRARY_PATH=/path/to/libf77blas.so.3/:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/path/to/libg2c/:$LD_LIBRARY_PATH
+```
+
+---
+
+### 8. Verify
+Ensure **BIB1** and **BIB2** are in the correct directories in installsmc file.
+
+---
+
+
+### 9. Install SMCPP
+
+**Steps:**
+```bash
+# Create installation directory
+mkdir ~/smcpp
+cd ~/smcpp
+
+# Copy installsmc script and .tar file to this directory
+chmod +x installsmc
+./installsmc
+```
+
+---
+
+## Notes
+- Make sure all dependencies are correctly installed before running `installsmc`.
 - If you encounter errors with library paths, verify your `LD_LIBRARY_PATH` exports.
 
 
