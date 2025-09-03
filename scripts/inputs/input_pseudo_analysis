@@ -1,8 +1,11 @@
 #!/bin/bash
 
-# This is the input for parteA of SMCPP.
+# This is the input for pseudo_analysis script. It will generate the electron density .log file for visualization.
 
 # DO NOT LEAVE ANY FREE SPACE AFTER THE ARGUMENT. REMEMBER TO LEAVE THE SPACES BETWEEN =
+
+# .log from GAMESS-SMC
+LOG = res-bhs2.log
 
 # CSF's construction type 
 CSF    = SE

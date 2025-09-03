@@ -16,46 +16,122 @@ Subsequent analysis of the cross-section requires the pseudo-spectrum of the Ham
 
 <a id="3">[3]</a> Santos, J. S. D., Da Costa, R. F., & Varella, M. T. N. (2012). Low-energy electron collisions with glycine. _The Journal of Chemical Physics, 136_(8), 02B616.
 
+# Installation Guide
+
+This guide provides step-by-step instructions to install **SMCPP code** and its dependencies.
+
+---
+
+## Requirements
+
+### 1) Intel Fortran Compiler (ifort)
+
+The SMC programs are written in FORTRAN, requiring `ifort`.
+
+- Installation help: [StackOverflow Guide](https://stackoverflow.com/questions/65570841/install-ifort-on-ubuntu-20)  
+- Download: [Intel oneAPI Fortran Compiler](https://www.intel.com/content/www/us/en/developer/articles/tool/oneapi-standalone-components.html#fortran)
+
+#### Installation Steps:
+```bash
+# Navigate to the instalation folder
+cd /path/to/folder
+
+# Make the installer executable
+sudo chmod +x ifort_instaler.sh
+
+# Run the installer
+./ifort_instaler.sh
+
+# Follow the installation instructions (pay attention to the chosen installation path)
+
+
+# Add the following line to your ~/.bashrc:
+. /path/to/oneapi/setvars.sh
+```
+
+**Note:** After this, you don’t need to call the library every time you use `ifort`.
+
+
+---
+
+
+### 2. gcc
+
+
+**Installation:**
+```bash
+sudo apt install gcc
+```
+
+
+---
+
+
+### 3. Intel Math Kernel Library (MKL)
+
+
+- Download: [Intel OneMKL](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl-download.html)
+
+
+**Installation Steps:**
+```bash
+# Navigate to the download folder:
+cd /path/to/folder
+
+
+# Make the file executable:
+sudo chmod +x mkl_installer.sh
+
+
+# Execute the installer:
+./mkl_installer.sh
+
+
+# Follow the installation instructions (pay attention to the chosen installation path)
+
+
+# Add the following line to your ~/.bashrc:
+. /path/to/oneapi/setvars.sh
+```
+**Note:** After this, you don’t need to call the library every time you use `ifort`.
+
+
+---
+
+
+### 4. csh
+
+
+**Installation:**
+```bash
+sudo apt install csh
+```
+
+
+---
+
+
+### 5. libatlas-base-dev
+
+
+**Installation:**
+```bash
+sudo apt-get update
+sudo apt-get install libatlas-base-dev
+```
+
+
+---
+
+
+### 6. libg2c
+
+
+- If you encounter errors with library paths, verify your `LD_LIBRARY_PATH` exports.
+
+
 # Tutorial
 
-Here you can find a tiny tutorial to learn how you could employ this project.
+Here you can find a tiny tutorial to learn how you could use this project.
 
-## Calculate the anion-neutral vibronic excitation energies
-
-1. You shoud have the anion's and neutral's G16 frequency .log file and comp_table file (if you just have the anharmonic .log files, you also will need a single point .log file for each anion and neutral). The comp_table file exemple can be found in exemple folder. Basically, you shoud indicate the neutral-anion normal modes correpondences. 
-
-2. Creating nmode.dat files: 
-
-For harmonic case: Use *split_frequencies.sh* script to each anion and neutral .log files to creatre the nmode.dat files
-``` bash
-./split_frequencies.sh neutral.log
-mkdir neutral
-mv nmode* neutral/
-
-./split_frequencies.sh anion.log
-mkdir anion
-mv nmode* anion/
-```
-
-For anharmonic case: Use *split_anharm.sh* script to each anion and neutral .log files to creatre the nmode.dat files
-``` bash
-./split_anharm.sh neutral.log > freq_neutro.log
-
-./split_anharm.sh anion.log > freq_anion.log
-```
-
-3. Creating the comparison file
-
-For harmonic case: Use *join_data.sh* script to join anion and neutral infos 
-``` bash
-./join_sp.sh comp_table neutral/ anion/
-
-./vibronic_excitation.py join_data.log neutral.log anion.log
-```
-
-For anharmonic case: Use *join_data.sh* script to join anion and neutral infos (here you can use single point .log files or harmonic .log files)
-``` bash
-./vibronic_excitation.py none sp_neutral.log sp_anion.log neutral.log anion.log
-```
-
-## Create .xyz files to PES calculation
+## Organizing the calculations
