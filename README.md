@@ -1,4 +1,26 @@
-# Introduction
+# SMC2023 - User-Friendly Interface
+
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Fortran](https://img.shields.io/badge/Fortran-2018-purple.svg)](https://fortran-lang.org/)
+[![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)](https://www.linux.org/)
+
+**User-friendly interface for the Schwinger Multichannel Method with Pseudopotentials (SMCPP) for low-energy electron-molecule scattering calculations.**
+
+---
+
+## Table of Contents
+- [Introduction](#introduction)
+- [Features](#features)
+- [References](#references)
+- [Acknowledgments](#acknowledgments)
+- [Installation Guide](#installation-guide)
+  - [Obtaining the SMC Base Code](#obtaining-the-smc-base-code)
+  - [Requirements](#requirements)
+- [Tutorial](#tutorial)
+
+---
+
+## Introduction
 
 The present implementations were developed using the software package employed for low-energy electron-molecule scattering calculations, specifically the Schwinger multichannel implementation (SMC), as the base.
 
@@ -8,6 +30,16 @@ The application of the SMC method for scattering calculations involves five dist
 
 Subsequent analysis of the cross-section requires the pseudo-spectrum of the Hamiltonian of $N+1$ electrons to identify the nature of the states involved in electron capture. To this end, a script that identifies which states are important for a given energy of the cross-section and allows the visualization of this state through dedicated software.
 
+## Features
+
+- **Automated workflow**: Bash scripts handle input file generation for all calculation steps
+- **Comprehensive coverage**: Implements all five SMC calculation steps (GAMESS-SMC, Part A, Part B components)
+- **Flexible basis sets**: Support for multiple atoms with BHS pseudopotentials (C, N, O, F, Cl, Br, I, S, Si, Ge, Sn, Sb, P)
+- **Symmetry support**: Handles various molecular symmetry groups (Cs, Cnh, Cnv, Dnh, C1)
+- **Modified Virtual Orbitals (MVOs)**: Enhanced orbital analysis for resonance identification
+- **Pseudo-spectrum analysis**: Tools for identifying and visualizing resonance states
+- **Installation automation**: Streamlined installation script for all dependencies
+
 ## References
 
 <a id="1">[1]</a> Takatsuka, K., & McKoy, V. (1981). Extension of the Schwinger variational principle beyond the static-exchange approximation. _Physical Review A, 24_(5), 2473.
@@ -15,6 +47,37 @@ Subsequent analysis of the cross-section requires the pseudo-spectrum of the Ham
 <a id="2">[2]</a> Da Costa, R. F., Varella, M. T. N., Bettega, M. H. F., & Lima, M. A. P. (2015). Recent advances in the application of the Schwinger multichannel method with pseudopotentials to electron-molecule collisions. _The European Physical Journal D, 69_(6), 159.
 
 <a id="3">[3]</a> Santos, J. S. D., Da Costa, R. F., & Varella, M. T. N. (2012). Low-energy electron collisions with glycine. _The Journal of Chemical Physics, 136_(8), 02B616.
+
+<a id="4">[4]</a> Abdoul-Carime, H., E. G. F. de Miranda, and M. T. do N Varella. "Low-energy (0–9 eV) electron interaction with gas phase 1, 3-dichlorobenzene: an experimental and theoretical study." Physica Scripta 99.12 (2024): 125401.
+
+---
+
+## Acknowledgments
+
+**What this repository provides:**
+
+This repository contains a **user-friendly interface** for the Schwinger Multichannel Method with Pseudopotentials (SMCPP), developed by Ely Miranda. The contributions include:
+
+- **Bash scripts** for automated input file generation for all calculation steps
+- **Installation script** (`installsmc`) that compiles all code components
+- **Pseudo-spectrum analysis tools** for resonance identification
+- **Complete documentation and tutorials** with working examples
+
+**Original SMC code:**
+
+The underlying FORTRAN implementation of the SMC method represents decades of development by the scientific community, particularly:
+- UNICAMP (Universidade Estadual de Campinas) version
+- Contributions from researchers cited in references [[1]](#1), [[2]](#2), [[3]](#3)
+
+**The base SMC code is NOT included in this repository.** To obtain it, please contact the researchers listed in the [Obtaining the SMC Base Code](#obtaining-the-smc-base-code) section.
+
+This interface was inspired by workflow automation seen in Columbus and NewtonX software packages.
+
+**Citation:**
+
+If you use these scripts in your research, please cite this repository and the relevant SMC method papers above.
+
+---
 
 # Installation Guide
 
