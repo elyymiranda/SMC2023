@@ -22,6 +22,19 @@ This guide provides step-by-step instructions to install **SMCPP code** and its 
 
 ---
 
+## Obtaining the SMC Base Code
+
+**IMPORTANT:** The SMC base code is proprietary and not included in this repository. To obtain the code base (`SMC2023_v7.tar`), you must send an email to one of the following researchers:
+
+- **Prof. Dr. Sergio d'Almeida Sanchez** - ssanchez@fisica.ufpr.br
+- **Prof. Dr. Márcio Henrique Franco Bettega** - bettega@fisica.ufpr.br
+- **Prof. Dr. Márcio Teixeira do Nascimento Varella** - mvarella@if.usp.br
+- **Dr. Fábris Kossoski** - fkossoski@irsamc.ups-tlse.fr
+
+Once you obtain the `SMC2023_v7.tar` file, place it in the `install/` directory. You will then be able to compile the SMC code using the `installsmc` script provided in the `install/` folder by following the instructions in this documentation.
+
+---
+
 ## Requirements
 
 ### 1) Intel Fortran Compiler (ifort)
@@ -313,6 +326,6 @@ With that in mind, we can proceed with the first step. Go to the gms folder and 
 # Go to gms directory
 cd /path/to/folder/dichlorobenzene/gms
 
-# Run nucgms cript
+# Run nucgms script
 $SMC/nucgms input_nucgms
 ```
