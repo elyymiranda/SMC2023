@@ -1,0 +1,33 @@
+# Vim swap files
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+
+# Fortran
+*.o
+*.mod
+*.a
+*.exe
+
+# Output files
+*.log
+*.out
+*.dat
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db

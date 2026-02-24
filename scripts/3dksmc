@@ -1,0 +1,285 @@
+#!/bin/bash
+
+# This script create all the structure for the SMC scattering calculations (parte B).
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 31/01/2023
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+
+### Input important informations
+
+if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
+    echo "No input provided"
+    exit 1
+fi
+
+FOLDER=$(dirname $(readlink -f $1))  # Track the job folder
+MOLECULE=$(sed -n '1p' eigenvec-sim)  # Find molecule name in input
+GROUP=$(sed -n '2p' eigenvec-sim)   # Find the Symmetry group of the molecule
+CSF=$(grep "^CSF" $1 | cut -d "=" -f 2 | sed 's/ //g')
+EIGENVEC='eigenvec-sim'
+
+INT_3DK=$(grep "^INT_POINT" $1 | cut -d "=" -f 2 | sed 's/ //g')                                      
+END_3DK=$(grep "^END_POINT" $1 | cut -d "=" -f 2 | sed 's/ //g')
+STEP=$(grep "^STEP" $1 | cut -d "=" -f 2 | sed 's/ //g')
+
+PATH_TO_B="$SMC/b2018/teste/1/b2018.x"
+
+
+### Folder creation 
+
+if [ $GROUP == CS ]; then
+        SYM=()
+        SYM+=(ap)
+        SYM+=(app)
+
+        for sym in ${SYM[@]}; do
+                mkdir -p $FOLDER/$CSF/$sym
+        done
+
+elif [ $GROUP == C2V ]; then
+        SYM=()
+        SYM+=(a1)
+        SYM+=(b1)
+        SYM+=(b2)
+        SYM+=(a2)
+
+        for sym in ${SYM[@]}; do
+                mkdir -p $FOLDER/$CSF/$sym
+        done
+
+elif [ $GROUP == C1 ]; then
+        mkdir -p $FOLDER/$CSF/
+
+else
+        echo "This $GROUP is not in this script".
+        break
+fi
+
+# Input production
+
+echo "#!/bin/csh
+
+set EXEC = $PATH_TO_B
+" > $FOLDER/$CSF/3dk
+
+chmod +x $FOLDER/$CSF/3dk
+
+ARRAY_3DK=()
+POINTS=$(echo "($END_3DK-$INT_3DK)/$STEP " | bc -l)
+POINTS_3DK=$(echo "$POINTS" | awk '{printf("%.0f\n", $0)}')
+POINTS_3DK=$(echo "$POINTS_3DK - 1" | bc )
+THRESHOLD=0.000000000000001
+
+if [ $POINTS_3DK -lt 15 ]; then
+
+        for i in $(seq 0 $POINTS_3DK); do
+
+                VALUE=$(awk -v x=$i.2g -v y=$STEP -v z=$INT_3DK 'BEGIN{value=(x*y+z-0.01); print value;}')
+
+                if awk -v val="$VALUE" -v thres="$THRESHOLD" 'BEGIN { if (val < thres) exit 0; else exit 1}' ; then
+                        VALUE=0.01
+                        echo "
+                        The initial value of the calculation is 0, so it was changed to 0.01.
+                        "
+                fi 
+
+                ARRAY_3DK+=($VALUE)
+        done
+
+        if [ $VALUE == $END_3DK ]; then
+                echo "set ener = (${ARRAY_3DK[@]})" >> $FOLDER/$CSF/3dk
+        else    
+                echo "set ener = (${ARRAY_3DK[@]} $END_3DK)" >> $FOLDER/$CSF/3dk
+        fi
+
+else
+
+        for i in $(seq 0 $POINTS_3DK); do
+                VALUE=$(awk -v x=$i.2g -v y=$STEP -v z=$INT_3DK 'BEGIN{value=(x*y+z-0.01); print value;}')
+        
+                if awk -v val="$VALUE" -v thres="$THRESHOLD" 'BEGIN { if (val < thres) exit 0; else exit 1}' ; then
+                        VALUE=0.01
+                        echo "
+                        The initial value of the calculation is 0, so it was changed to 0.01.
+                        "
+                fi 
+
+                ARRAY_3DK+=($VALUE)
+
+                if (( $i == 15 )); then
+                        echo 'set ener = ('"${ARRAY_3DK[@]}"' \' >> $FOLDER/$CSF/3dk
+			ARRAY_3DK=()
+
+                elif (( $i == $POINTS_3DK )); then
+                        if  (( $(echo "$VALUE - $END_3DK == 0" | bc -l) )); then
+		#	if [ $VALUE == $END_3DK ]; then
+                                echo "${ARRAY_3DK[@]}"')' >> $FOLDER/$CSF/3dk
+                        else
+                                echo "${ARRAY_3DK[@]} $END_3DK"')' >> $FOLDER/$CSF/3dk
+                        fi
+                        ARRAY_3DK=()
+
+                elif (( $i % 15 == 0 )) && (( $i != 0)); then
+                        echo "${ARRAY_3DK[@]}"' \' >> $FOLDER/$CSF/3dk
+                        ARRAY_3DK=()
+                fi
+        done
+
+fi
+
+echo "
+\$EXEC << fin > 3dk_${INT_3DK}-${END_3DK}.log
+" >> $FOLDER/$CSF/3dk
+
+ILINE=$(grep -n "INI_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n "END_CONTROL_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$ILINE,$FLINE p" $1 >> "$FOLDER/$CSF/3dk"  # Save the states info
+
+echo '
+%INI_SYMETRY_BLOCK' >> "$FOLDER/$CSF/3dk"
+
+if [ $GROUP == CS ]; then
+
+        echo 'SYMOP = Z' >> "$FOLDER/$CSF/3dk"
+
+        l1=$(grep -n "ORBITAL SYMMETRIES" $FOLDER/$EIGENVEC | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        l2=$(grep -n "SYMMETRY BLOCKS" $FOLDER/$EIGENVEC | awk '{print $1}' | tr -d :) #find the line of occurance of this word
+        sed -n "$((${l1}+2)), $((${l2}-3)) p" $FOLDER/$EIGENVEC > $FOLDER/$CSF/tmp
+        cat $FOLDER/$CSF/tmp >> "$FOLDER/$CSF/3dk"
+
+elif [ $GROUP == C2V ]; then
+
+        echo 'SYMOP = XZ' >> "$FOLDER/$CSF/3dk"
+
+        # Read the input file and build the array from specific lines
+        xnumbers=()
+        start_reading=false
+        line_buffer=()
+        while IFS= read -r line; do
+                if [[ $line == "  X reflection"* ]]; then
+                        start_reading=true
+                        continue
+                elif [[ $line == "  Z reflection"* ]]; then
+                        # Remove the last two lines from line_buffer
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        break
+                fi
+
+                if $start_reading; then
+                        line_buffer+=("$line")
+                fi
+        done < "$FOLDER/$EIGENVEC"
+
+        # Process the line_buffer to build the array
+        for line in "${line_buffer[@]}"; do
+                for number in $line; do
+                        xnumbers+=($number)
+                done
+        done
+
+        # Read the input file and build the array from specific lines
+        znumbers=()
+        start_reading=false
+        line_buffer=()
+        while IFS= read -r line; do
+                if [[ $line == "  Z reflection"* ]]; then
+                        start_reading=true
+                        continue
+                elif [[ $line == "                    SYMMETRY BLOCKS"* ]]; then
+                        # Remove the last two lines from line_buffer
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        unset 'line_buffer[${#line_buffer[@]}-1]'
+                        break
+                fi
+
+                if $start_reading; then
+                        line_buffer+=("$line")
+                fi
+        done < "$FOLDER/$EIGENVEC"
+
+        # Process the line_buffer to build the array
+        for line in "${line_buffer[@]}"; do
+                for number in $line; do
+                        znumbers+=($number)
+                done
+        done
+
+        # Multiply signals 
+        xznumbers=()
+        pointer=-1
+        for i in ${xnumbers[@]}; do
+                pointer=$((pointer+1))
+                if [ ${znumbers[$pointer]} -gt 0 ]; then
+                        xznumbers+=($i)
+                else
+                        i=$((i*(-1)))
+                        xznumbers+=($i)
+                fi
+        done
+
+        # Print the array in the specified format
+        count=0
+        for number in "${xnumbers[@]}"; do
+                printf "%5d" $number >> "$FOLDER/$CSF/3dk"
+                count=$((count + 1))
+                if (( count % 15 == 0 )); then
+                        echo "" >> "$FOLDER/$CSF/3dk"
+                fi
+        done
+
+        # Print the array in the specified format
+        count=0
+        for number in "${znumbers[@]}"; do
+                printf "%5d" $number >> "$FOLDER/$CSF/3dk"
+                count=$((count + 1))
+                if (( count % 15 == 0 )); then
+                        echo "" >> "$FOLDER/$CSF/3dk"
+                fi
+        done
+
+        # Print the array in the specified format
+        count=0
+        for number in "${xznumbers[@]}"; do
+                printf "%5d" $number >> "$FOLDER/$CSF/3dk"
+                count=$((count + 1))
+                if (( count % 15 == 0 )); then
+                        echo "" >> "$FOLDER/$CSF/3dk"
+                fi
+        done
+
+elif [ $GROUP == C1 ]; then
+
+        echo 'SYMOP = NO' >> "$FOLDER/$CSF/3dk"
+
+else
+        echo "This $GROUP is not in this script".
+
+fi
+
+echo '%END_SYMETRY_BLOCK
+' >> "$FOLDER/$CSF/3dk"
+
+ILINE=$(grep -n "INI_QUADTRE_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the initial line of the states info
+FLINE=$(grep -n "END_QUADTRE_BLOCK" $1 | awk '{print $1}' | sed 's/[^0-9]*//g')  # Find the final line of the states info
+sed -n "$ILINE,$FLINE p" $1 >> "$FOLDER/$CSF/3dk"  # Save the states info
+
+echo '
+fin' >> "$FOLDER/$CSF/3dk"
+
+mv $FOLDER/$CSF/3dk $FOLDER/$CSF/3dk_$INT_3DK-${END_3DK}.inp
+
+if [ $GROUP != "C1" ]; then
+
+        for sym in ${SYM[@]}; do
+
+                cp $FOLDER/$CSF/3dk* $FOLDER/$CSF/${sym}
+                                
+        done
+
+rm $FOLDER/$CSF/3dk*
+
+fi
+
+rm $FOLDER/$CSF/tmp 2>/dev/null

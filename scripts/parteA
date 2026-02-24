@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# This script .
+# Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
+# Last update: 02/02/2023
+# Any question or suggestion write me: ely.miranda@usp.br :)
+
+
+### Input important informations
+
+if [ $# -eq 0 ]; then  # If no argument (input) is given, end the script.
+    echo "No input provided"
+    exit 1
+fi
+
+if [ "$1" != "run" ] && [ "$1" != "pseudo" ] && [ "$1" != "plotped" ] ; then
+  echo "The input provided is not compatible with any script (run or pseudospec)."
+  exit 1
+fi
+
+if [ "$1" == "run" ]; then
+  $SMC/runparteA $2
+else
+  $SMC/$1 $2
+fi
