@@ -2,7 +2,7 @@
 
 # This script organizes the .log information from EIGENVEC.LIS.
 # Script made by Ely Miranda, PhD student at Physics Institute in Universidade de São Paulo
-# Last update: 13/08/2024
+# Last update: 04/03/2026
 # Any question or suggestion write me: ely.miranda@usp.br :)
 
 # Set locale to American English to ensure correct decimal separator and keyboard layout
@@ -32,7 +32,7 @@ PATH_TO_HCOMP="$SMC/hcomp_v2/hcomp_v2.x"
 
 if [ $GROUP == CS ]; then
     SYM=()
-#    SYM+=(ap)
+    SYM+=(ap)
     SYM+=(app)
 
     l1=$(grep -n "BLOCK 1" $FOLDER/eigenvec-sim | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
@@ -253,15 +253,15 @@ CSF      Coeff.      Orb." >> $FOLDER/$CSF/$sym/pseudo.info
         			COLUMN=$(($ORBCOLUMN + 4))  # Adjust column for non-exact orbitals
         
         			# Check the length of the atom symbol to adjust the column number
-        			awk -v COLUMN=$COLUMN '{ 
-            				atom_symbol = $2; 
-            				if (length(atom_symbol) > 2) { 
-                				# Adjust for long atom symbols
-                				print $(COLUMN + 1)
-            				} else { 
+        			awk -v COLUMN=$COLUMN '{
+            				atom_symbol = $2;
+            				if (length(atom_symbol) > 2) {
+                				# Adjust for long atom symbols (e.g. CL11 has 1 fewer field)
+                				print $(COLUMN - 1)
+            				} else {
                 				# Default column
                 				print $COLUMN
-            				} 
+            				}
         			}' $FOLDER/$CSF/$sym/${STATE}_$ORBITAL > $FOLDER/$CSF/$sym/tmp3
 
         			# Rename the file
@@ -311,32 +311,32 @@ CSF      Coeff.      Orb." >> $FOLDER/$CSF/$sym/pseudo.info
 #		            fi
 #                done
 
-echo "certo até aqui"
+#echo "certo até aqui"
 
                 # Find the coefficients in input and solve the Eq. to obtain the value to fix the probabilities
-		echo "
-Coeficients: ${COEF[@]}
-Orbitals: ${ORB[@]}"
+#		echo "
+#Coeficients: ${COEF[@]}
+#Orbitals: ${ORB[@]}"
 
                 for COEF in ${COEF[@]}; do
-                    echo "Inicio: SUM2=$SUM2; SUM1=$SUM1; Coef:$COEF"
+                    #echo "Inicio: SUM2=$SUM2; SUM1=$SUM1; Coef:$COEF"
 		    SUM2=$(echo "scale=6; $COEF" | bc)
                     SUM2=$(echo "scale=6; $SUM2 * $SUM2" | bc)
                     SUM1=$(echo "scale=6; $SUM1 + $SUM2" | bc)
-		    echo "Fim: SUM2=$SUM2; SUM1=$SUM1; Coef:$COEF"
+		    #echo "Fim: SUM2=$SUM2; SUM1=$SUM1; Coef:$COEF"
                 done
 		    
 	
 	            NEWCOEFF=$(echo "sqrt($SUM1)" | bc -l)  # Second part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
 	            NEWCOEFF=$(echo "- 1/$NEWCOEFF" | bc -l)  # Third part to obtain x=Sqrt(1/SUM(COEF^2)), i.e the new coefficients (rebuild normalizaion)
 		
-		    echo "SUM1=$SUM1; NEWCOEF=$NEWCOEFF; COE*NEWCOE=$(echo "$COEF * $NEWCOEFF" | bc -l)"
+		    #echo "SUM1=$SUM1; NEWCOEF=$NEWCOEFF; COE*NEWCOE=$(echo "$COEF * $NEWCOEFF" | bc -l)"
                     
 
 		     # Operate the date and save the results
 
 	            ls $FOLDER/$CSF/$sym/${STATE}_*
-                    tail -10 $FOLDER/$CSF/$sym/${STATE}_25
+ #                   tail -10 $FOLDER/$CSF/$sym/${STATE}_25
 	            perl -i -lpe '$_=$_'*$NEWCOEFF $FOLDER/$CSF/$sym/${STATE}_*  # Multiply the coef. by x to rebuild normalization
 		    echo ""
 		    tail -10 $FOLDER/$CSF/$sym/${STATE}_25
@@ -455,7 +455,7 @@ NCONFS = '"$NCONFS"  > $FOLDER/$CSF/$sym/hcomp
 
         chmod +x $FOLDER/$CSF/$sym/hcomp
         cd $FOLDER/$CSF/$sym/
-#        ./hcomp
+        ./hcomp
 
         l1=$(grep -n "%INI_WAVEFUN_BLOCK" $FOLDER/$CSF/$sym/$sym-a | awk '{print $1}' | sed 's/[^0-9]*//g') #find the line of occurance of this word
         NUMBER_OF_OCC_ORBITALS=$(sed -n "$((${l1}+1)) p" $FOLDER/$CSF/$sym/$sym-a | awk '{print $2}' | sed 's/[^0-9]*//g')
